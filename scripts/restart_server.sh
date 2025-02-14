@@ -11,11 +11,11 @@ fi
 COMPOSE_FILES="-f docker-compose.yml"
 
 if [[ "$USE_NGINX" == "true" ]]; then
-    COMPOSE_FILES="$COMPOSE_FILES -f docker-compose-webserver.yml"
+    COMPOSE_FILES="$COMPOSE_FILES -f docker-compose-proxy.yml"
 fi
 
 if [[ "$AUTO_MANAGE_CERTS" == "true" ]]; then
-    COMPOSE_FILES="$COMPOSE_FILES -f docker-compose-proxy.yml"
+    COMPOSE_FILES="$COMPOSE_FILES -f docker-compose-webserver.yml"
 fi
 
 # Restart services
