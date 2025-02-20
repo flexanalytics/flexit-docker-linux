@@ -106,6 +106,10 @@ USE_NGINX=true
 ```
 2. Provide a certificate and key file. These files should be placed in the `$CERT_PATH` folder that's configured in the `.env` file.
 
+> [!NOTE] 
+> The certificate and key files will need to have the naming convention of `PUBLIC_DNS.crt` and `PUBLIC_DNS.key` i.e. `flexit.myserver.com.crt`.
+More information can be found in the nginx proxy containers documentation [here](https://github.com/nginx-proxy/nginx-proxy/tree/main/docs#ssl-support)
+
 3. Change the `PUBLIC_DNS` in the `.env` file to the domain name you want to use.
 
 ```dotenv 
