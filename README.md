@@ -31,14 +31,14 @@ CONTENT_DB_VERSION=latest
 DB_PORT=5432
 
 ## -- Optional nginx setup -- ##
-USE_NGINX=true
+USE_NGINX=false
 CERT_PATH=/etc/nginx/certs
 PUBLIC_DNS=myserver.mydomain.com
 NGINX_HTTPS_PORT=443
 NGINX_HTTP_PORT=80
 ```
 
-See the [Configure SSL](#configure-ssl) section below for details on how to enable HTTPS/SSL. The above configuration uses the [Nginx with your certs](#2-use-the-provided-nginx-reverse-proxy-with-your-own-certificate) configuration, which would require the following:
+See the [Configure SSL](#configure-ssl) section below for details on how to enable HTTPS/SSL. The above configuration uses the [Nginx with your certs](#2-use-the-provided-nginx-reverse-proxy-with-your-own-certificate) configuration, which would require you to set `USE_NGINX=true` and then the following:
 1. The `/etc/nginx/certs` folder
 2. The `myserver.mydomain.com.crt` certificate file under that folder
 3. The `myserver.mydomain.com.key` private key file under that folder
