@@ -161,6 +161,19 @@ AUTO_MANAGE_CERTS=true
 sudo ./scripts/restart_server.sh
 ```
 
+## Installing a patch
+
+The standard deployment pulls versions from the repo to deploy standard versions of FlexIt. If a patch is issued and you need to apply a non-standard FlexIt version, then you can follow these instructions to build the new image:
+
+```bash
+scp -i /path/to/flexitserver-privatekey.pem "/path/to/flexit/install/installers/flexit-linux-x64-installer.run" ubuntu@1.1.1.1:~/flexit-docker-deploy
+ssh -i /path/to/flexitserver-privatekey.pem ubuntu@1.1.1.1
+cd flexit-docker-deploy
+sudo docker compose down
+sudo docker rmi $(sudo docker images -q) #removes all docker images to clear up space
+sudo docker compose build
+sudo docker compose up --pull missing -d
+```
 
 ---
 
