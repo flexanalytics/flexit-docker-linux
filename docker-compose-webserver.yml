@@ -2,6 +2,7 @@ services:
   flexit-webserver-proxy:
     container_name: flexit-webserver-proxy
     image: nginxproxy/acme-companion
+    restart: unless-stopped
     depends_on:
       - nginx-proxy
     networks:
