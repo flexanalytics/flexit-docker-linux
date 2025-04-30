@@ -6,7 +6,11 @@ services:
     networks:
       - flex-network
     image: ghcr.io/flexanalytics/flexit:${FLEXIT_VERSION}
-    pull_policy: always
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file: .env
+    pull_policy: missing
     restart: unless-stopped
     environment:
       DATABASE_URL: postgres://${DB_USER}:${DB_PASSWORD}@flexit-content-database:5432/${DB_NAME}
