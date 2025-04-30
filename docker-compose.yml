@@ -9,7 +9,7 @@ services:
     pull_policy: always
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@flexit-content-database:5432/${POSTGRES_DB}
+      DATABASE_URL: postgres://${DB_USER}:${DB_PASSWORD}@flexit-content-database:5432/${DB_NAME}
       PORT: ${FLEXIT_PORT}
       VIRTUAL_HOST: ${PUBLIC_DNS}
       VIRTUAL_PORT: ${FLEXIT_PORT}
@@ -32,9 +32,9 @@ services:
     ports:
       - "${DB_PORT}:5432"
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
