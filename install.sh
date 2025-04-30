@@ -28,7 +28,7 @@ else
 fi
 
 # Prompt for database details
-echo "\nPlease configure the backend database. Keep these credentials secure, you will only be asked once."
+echo "Please configure the backend database. Keep these credentials secure, you will only be asked once."
 read -p "Enter database username: " DB_USER
 read -s -p "Enter database password: " DB_PASSWORD
 echo
@@ -42,7 +42,7 @@ export POSTGRES_DB="$DB_NAME"
 export DATABASE_URL="postgresql://$DB_USER:$DB_PASSWORD@flexit-content-database:5432/$DB_NAME"
 
 echo "Installing FlexIt..."
-docker compose up -d
+docker compose up -d --build
 
 # Retrieve FLEXIT_PORT from .env file
 if [ -f .env ]; then
