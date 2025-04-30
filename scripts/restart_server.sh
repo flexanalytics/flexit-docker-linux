@@ -20,7 +20,19 @@ fi
 
 # Restart services
 echo "Stopping and removing containers..."
-docker compose $COMPOSE_FILES down --remove-orphans
+./stop_server.sh
 
-echo "Restarting services with: docker compose $COMPOSE_FILES up -d"
-docker compose $COMPOSE_FILES up -d
+# Pull from the repo
+echo "Pulling changes from GitHub"
+if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git ls-files --others --exclude-standard)" ]; then
+  git stash push -u -m "auto-stash before pull"
+  STASHED=1
+fi
+
+git pull origin HEAD --ff-only
+
+if [ "$STASHED" = "1" ]; then
+  git stash pop
+fi
+
+./start_server.sh

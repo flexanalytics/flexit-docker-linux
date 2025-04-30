@@ -2,10 +2,15 @@
 
 set -e  # Exit immediately if a command fails
 
-# Load environment variables from .env file if it exists
-if [ -f ./.env ]; then
-    export $(grep -v '^#' ./.env | xargs)
+# Change to script directory to ensure relative paths work
+cd "$(dirname "$0")"
+
+# Load environment variables from .env file one directory up if it exists
+if [ -f ../.env ]; then
+    export $(grep -v '^#' ../.env | xargs)
 fi
+
+cd ..
 
 # Determine which docker-compose files to use
 COMPOSE_FILES="-f docker-compose.yml"
@@ -21,5 +26,5 @@ if [[ "$AUTO_MANAGE_CERTS" == "true" ]]; then
 fi
 
 # Start services
-echo "Starting services with: docker compose $COMPOSE_FILES up -d"
-docker compose $COMPOSE_FILES up -d
+echo "Starting services with: sudo docker compose $COMPOSE_FILES up -d $PULL_FLAG"
+sudo docker compose $COMPOSE_FILES up -d $PULL_FLAG
