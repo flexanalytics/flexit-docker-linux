@@ -8,10 +8,8 @@ services:
     networks:
       - flex-network
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/run/docker.sock:/tmp/docker.sock:ro
       - ${CERT_PATH}:/etc/nginx/certs
-      - /usr/share/nginx/html:/usr/share/nginx/html
-      - ${CERT_PATH}:/etc/acme.sh
-    environment:
-      DEFAULT_EMAIL: ${CERT_EMAIL}
-      NGINX_PROXY_CONTAINER: nginx-proxy
+networks:
+  flexit-network:
+    external: true
