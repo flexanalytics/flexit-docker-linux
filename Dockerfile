@@ -4,10 +4,10 @@ FROM ubuntu:jammy
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Set environment variables for FlexIt, Sling, and dbt versions
-ARG FLEXIT_VERSION=2025.04.005
+ARG FLEXIT_VERSION=latest
 ENV FLEXIT_VERSION=$FLEXIT_VERSION
 
-ARG SLING_VERSION=v1.2.13
+ARG SLING_VERSION=v1.4.6
 ENV SLING_VERSION=$SLING_VERSION
 
 ARG DBT_VERSION=1.9
@@ -41,7 +41,11 @@ COPY flexit-linux-x64-installer.ru[n] /tmp/flexit-linux-x64-installer.run
 # Check if the FlexIt installer exists locally; if not, download it
 RUN \
     if [ ! -f /tmp/flexit-linux-x64-installer.run ]; then \
-        curl -L -o flexit.run -C - https://github.com/flexanalytics/flexit-deploy/releases/download/${FLEXIT_VERSION}/flexit-linux-x64-installer.run; \
+        if [ "$FLEXIT_VERSION" = "latest" ]; then \
+            curl -L -o flexit.run -C - https://github.com/flexanalytics/flexit-deploy/releases/latest/download/flexit-linux-x64-installer.run; \
+        else \
+            curl -L -o flexit.run -C - https://github.com/flexanalytics/flexit-deploy/releases/download/${FLEXIT_VERSION}/flexit-linux-x64-installer.run; \
+        fi; \
     else \
         mv /tmp/flexit-linux-x64-installer.run ./flexit.run; \
     fi \
