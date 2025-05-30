@@ -1,15 +1,15 @@
 services:
-  flexit-webserver-proxy:
-    container_name: flexit-webserver-proxy
-    image: nginxproxy/acme-companion
+  flexit-webserver:
+    container_name: flexit-webserver
+    image: jwilder/nginx-proxy
     restart: unless-stopped
-    depends_on:
-      - nginx-proxy
     networks:
-      - flex-network
+      - flexit-network
+    ports:
+      - "${NGINX_HTTPS_PORT}:443"
+      - "${NGINX_HTTP_PORT}:80"
     volumes:
       - /var/run/docker.sock:/tmp/docker.sock:ro
       - ${CERT_PATH}:/etc/nginx/certs
 networks:
   flexit-network:
-    external: true

@@ -2,21 +2,8 @@
 
 set -e  # Exit immediately if a command fails
 
-# Load environment variables from .env file if it exists
-if [ -f ./.env ]; then
-    export $(grep -v '^#' ./.env | xargs)
-fi
-
-# Determine which docker-compose files to use
-COMPOSE_FILES="-f docker-compose.yml"
-
-if [[ "$USE_NGINX" == "true" ]]; then
-    COMPOSE_FILES="$COMPOSE_FILES -f docker-compose-proxy.yml"
-fi
-
-if [[ "$AUTO_MANAGE_CERTS" == "true" ]]; then
-    COMPOSE_FILES="$COMPOSE_FILES -f docker-compose-webserver.yml"
-fi
+# Change to script directory to ensure relative paths work
+cd "$(dirname "$0")"
 
 # Restart services
 echo "Stopping and removing containers..."

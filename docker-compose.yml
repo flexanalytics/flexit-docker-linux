@@ -4,19 +4,25 @@ services:
     container_name: flexit-analytics
     hostname: ${PUBLIC_DNS}
     networks:
-      - flex-network
-    image: ghcr.io/flexanalytics/flexit:${FLEXIT_VERSION}
+      - flexit-network
     build:
       context: .
       dockerfile: Dockerfile
-    env_file: .env
+    image: ghcr.io/flexanalytics/flexit:${FLEXIT_VERSION}
     pull_policy: missing
+    env_file: .env
     restart: unless-stopped
+    depends_on:
+      flexit-content-database:
+        condition: service_healthy
     environment:
       DATABASE_URL: postgres://${DB_USER}:${DB_PASSWORD}@flexit-content-database:5432/${DB_NAME}
+      NODE_ENV: development
       PORT: ${FLEXIT_PORT}
       VIRTUAL_HOST: ${PUBLIC_DNS}
-      VIRTUAL_PORT: ${FLEXIT_PORT}
+      VIRTUAL_PORT: 3030
+      LETSENCRYPT_HOST: ${PUBLIC_DNS}
+      LETSENCRYPT_EMAIL: ${CERT_EMAIL}
 
     ports:
       - "${FLEXIT_PORT}:3030"
@@ -32,7 +38,7 @@ services:
     image: postgres:15
     restart: unless-stopped
     networks:
-      - flex-network
+      - flexit-network
     ports:
       - "${DB_PORT}:5432"
     environment:
@@ -41,6 +47,11 @@ services:
       POSTGRES_DB: ${DB_NAME}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   flexit_config:
@@ -55,12 +66,8 @@ volumes:
     name: flexit_webcontent
   postgres_data:
     name: postgres_data
-  acme:
-    name: acme_data
 
 networks:
-  flex-network:
-    name: flex-network
+  flexit-network:
+    name: flexit-network
     driver: bridge
-
-
