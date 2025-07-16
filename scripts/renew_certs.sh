@@ -27,7 +27,4 @@ else
     -keyout "$KEY_PATH" \
     -out "$CRT_PATH" \
     -subj "/CN=${PUBLIC_DNS}"
-
-  echo "[$(date)] Restarting nginx container..."
-  docker restart flexit-webserver
 fi
