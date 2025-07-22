@@ -34,3 +34,6 @@ sudo docker compose $COMPOSE_FILES build --build-arg CACHEBUST=$(date +%s)
 # Start services
 echo "Starting services with: sudo docker compose $COMPOSE_FILES up -d $PULL_FLAG"
 sudo docker compose $COMPOSE_FILES up -d $PULL_FLAG
+
+echo "Pruning unused docker artifacts"
+sudo docker system prune -f
