@@ -4,7 +4,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Set environment variables for FlexIt, Sling, and dbt versions
 ENV FLEXIT_VERSION=latest
-ENV SLING_VERSION=v1.4.1
+ENV SLING_VERSION=v1.4.5
 ENV DBT_VERSION=1.9
 
 # Install system dependencies
