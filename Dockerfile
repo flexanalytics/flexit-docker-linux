@@ -11,7 +11,6 @@ ENV DBT_VERSION=1.9
 RUN apt-get update && apt-get install -y --no-install-recommends \
     apt-transport-https \
     build-essential \
-    chromium-browser \
     curl \
     git \
     gnupg \
@@ -25,6 +24,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tini \
     unixodbc \
     unixodbc-dev
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl gnupg \
+ && mkdir -p /etc/apt/keyrings \
+ && curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
+    | gpg --dearmor -o /etc/apt/keyrings/google-linux.gpg \
+ && echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-linux.gpg] https://dl.google.com/linux/chrome/deb/ stable main" \
+    > /etc/apt/sources.list.d/google-chrome.list \
+ && apt-get update && apt-get install -y --no-install-recommends \
+    google-chrome-stable \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN set -eux; cd /opt/google/chrome/locales; \
+    find . -type f ! -name 'en-US.pak' -delete || true
+
+ENV CHROMIUM_PATH=/usr/bin/google-chrome
+ENV CHROME_FLAGS="--headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage"
 
 # Set working directory
 WORKDIR /opt/flexit/bin
