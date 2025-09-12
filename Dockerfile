@@ -11,7 +11,6 @@ ENV DBT_VERSION=1.9
 RUN apt-get update && apt-get install -y --no-install-recommends \
     apt-transport-https \
     build-essential \
-    chromium-browser \
     curl \
     git \
     gnupg \
