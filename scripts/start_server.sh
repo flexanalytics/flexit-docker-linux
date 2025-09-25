@@ -29,7 +29,9 @@ fi
 
 # Build images
 echo "Building local images"
-sudo docker compose $COMPOSE_FILES build --build-arg CACHEBUST=$(date +%s)
+if ! sudo docker compose $COMPOSE_FILES build --build-arg CACHEBUST=$(date +%s); then
+    echo "Build failed, continuing with existing images"
+fi
 
 # Start services
 echo "Starting services with: sudo docker compose $COMPOSE_FILES up -d $PULL_FLAG"
