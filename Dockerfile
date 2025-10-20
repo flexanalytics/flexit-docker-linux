@@ -35,7 +35,7 @@ RUN \
     && rm -f sling_linux_amd64.tar.gz \
     && chmod +x /usr/local/bin/sling
 
-# Install dbt
+# Install dbt, meltano, and colibri
 RUN \
     python3 -m venv venv \
     && . venv/bin/activate \
@@ -43,8 +43,12 @@ RUN \
     && python3 -m pip install --no-cache-dir \
         "dbt-core~=${DBT_VERSION}" \
         "dbt-redshift~=${DBT_VERSION}" \
-    # symlink virtualenv dbt to a location on $PATH
-    && ln -s /opt/flexit/bin/venv/bin/dbt /usr/local/bin/dbt
+    && python3 -m pip install --no-cache-dir meltano \
+    && python3 -m pip install --no-cache-dir dbt-colibri \
+    # symlink tools to a location on $PATH
+    && ln -s /opt/flexit/bin/venv/bin/dbt /usr/local/bin/dbt \
+    && ln -s /opt/flexit/bin/venv/bin/meltano /usr/local/bin/meltano \
+    && ln -s /opt/flexit/bin/venv/bin/colibri /usr/local/bin/colibri
 
 # Clean up
 RUN \
