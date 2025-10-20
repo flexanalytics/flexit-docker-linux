@@ -36,6 +36,7 @@ services:
   flexit-content-database:
     container_name: flexit-content-database
     image: postgres:15
+    platform: linux/amd64
     restart: unless-stopped
     networks:
       - flexit-network
