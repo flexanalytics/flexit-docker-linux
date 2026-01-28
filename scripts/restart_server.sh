@@ -31,7 +31,7 @@ fi
 
 if [[ "$USE_SELF_SIGNED_CERT" == "true" ]]; then
   echo "Checking renewal of self-signed cert"
-  ./renew_cert.sh
+  ./renew_certs.sh
 fi
 
 ./start_server.sh
