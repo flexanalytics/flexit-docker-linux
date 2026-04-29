@@ -14,6 +14,13 @@ fi
 
 cd ..
 
+# Set memory limit to available RAM minus 1G buffer (Linux only; on Mac, Docker Desktop manages this)
+if [[ "$(uname)" == "Linux" ]]; then
+    available_mb=$(free -m | awk '/^Mem:/{print $7}')
+    export MEMORY_LIMIT=$(( available_mb - 1024 ))m
+    echo "Setting container memory limit to $MEMORY_LIMIT"
+fi
+
 # Determine which docker-compose files to use
 COMPOSE_FILES="-f docker-compose.yml"
 

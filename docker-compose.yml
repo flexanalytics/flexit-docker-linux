@@ -24,6 +24,11 @@ services:
       LETSENCRYPT_HOST: ${PUBLIC_DNS}
       LETSENCRYPT_EMAIL: ${CERT_EMAIL}
 
+    deploy:
+      resources:
+        limits:
+          memory: ${MEMORY_LIMIT:-0}
+
     ports:
       - "${FLEXIT_PORT}:3030"
     volumes:
