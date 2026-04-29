@@ -2,10 +2,22 @@ FROM ubuntu:jammy AS base
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Set environment variables for FlexIt, Sling, and dbt versions
+# Set environment variables for FlexIt, Sling, dbt, and dlt versions
 ENV FLEXIT_VERSION=latest
-ENV SLING_VERSION=v1.4.5
 ENV DBT_VERSION=1.9
+ENV DLT_VERSION=1.20
+
+# dlt verified sources to pre-install (space-separated)
+# These are API sources that require dlt init (sql_database is built-in)
+# Override at build time: --build-arg DLT_VERIFIED_SOURCES="salesforce hubspot"
+ARG DLT_VERIFIED_SOURCES="filesystem"
+ARG DLT_DEFAULT_DESTINATION=snowflake
+ENV DLT_VERIFIED_SOURCES=${DLT_VERIFIED_SOURCES}
+ENV DLT_DEFAULT_DESTINATION=${DLT_DEFAULT_DESTINATION}
+
+# Central location for dlt verified sources (accessible from any deployment folder)
+ENV DLT_SOURCES_PATH=/opt/flexit/dlt_sources
+ENV PYTHONPATH="${DLT_SOURCES_PATH}:${PYTHONPATH}"
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -14,10 +26,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     git \
     gnupg \
+    libaio1 \
     libgssapi-krb5-2 \
+    libpq-dev \
     python3-full \
     python3-pip \
-    python3-venv \
     python3.11 \
     sudo \
     systemd \
@@ -28,27 +41,42 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Set working directory
 WORKDIR /opt/flexit/bin
 
-# Install sling for data ingestion
+# Install dbt, dlt, and colibri (global install - no venv needed in Docker)
+ENV PIP_BREAK_SYSTEM_PACKAGES=1
 RUN \
-    curl -LO https://github.com/slingdata-io/sling-cli/releases/download/${SLING_VERSION}/sling_linux_amd64.tar.gz \
-    && tar xf sling_linux_amd64.tar.gz -C /usr/local/bin \
-    && rm -f sling_linux_amd64.tar.gz \
-    && chmod +x /usr/local/bin/sling
-
-# Install dbt, meltano, and colibri
-RUN \
-    python3 -m venv venv \
-    && . venv/bin/activate \
-    && python3 -m pip install --no-cache-dir --upgrade pip \
+    python3 -m pip install --no-cache-dir --upgrade pip \
+    # dbt with adapters
     && python3 -m pip install --no-cache-dir \
         "dbt-core~=${DBT_VERSION}" \
         "dbt-redshift~=${DBT_VERSION}" \
-    && python3 -m pip install --no-cache-dir meltano \
+    # dlt with destination + source extras
+    && python3 -m pip install --no-cache-dir \
+        "dlt[${DLT_DEFAULT_DESTINATION},filesystem,s3]~=${DLT_VERSION}" \
+    # Database drivers for dlt sql_database source (not covered by destination extras)
+    && python3 -m pip install --no-cache-dir \
+        numpy \
+        oracledb \
+        pymysql \
+        pyodbc \
+        pyarrow \
+        pandas \
     && python3 -m pip install --no-cache-dir dbt-colibri \
-    # symlink tools to a location on $PATH
-    && ln -s /opt/flexit/bin/venv/bin/dbt /usr/local/bin/dbt \
-    && ln -s /opt/flexit/bin/venv/bin/meltano /usr/local/bin/meltano \
-    && ln -s /opt/flexit/bin/venv/bin/colibri /usr/local/bin/colibri
+    # symlink python3 to python for convenience
+    && ln -s /usr/bin/python3 /usr/local/bin/python
+
+# Pre-install dlt verified sources to central location
+# These can be imported from any deployment folder via PYTHONPATH
+RUN \
+    mkdir -p ${DLT_SOURCES_PATH} \
+    && cd ${DLT_SOURCES_PATH} \
+    && for source in ${DLT_VERIFIED_SOURCES}; do \
+        echo "Installing dlt verified source: ${source}"; \
+        dlt init ${source} ${DLT_DEFAULT_DESTINATION}; \
+        if [ -f requirements.txt ]; then \
+            python3 -m pip install --no-cache-dir -r requirements.txt; \
+        fi; \
+    done \
+    && rm -f ${DLT_SOURCES_PATH}/*.py
 
 # Clean up
 RUN \
