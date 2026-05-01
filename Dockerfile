@@ -51,10 +51,11 @@ RUN \
         "dbt-redshift~=${DBT_VERSION}" \
     # dlt with destination + source extras
     && python3 -m pip install --no-cache-dir \
-        "dlt[${DLT_DEFAULT_DESTINATION},filesystem,s3]~=${DLT_VERSION}" \
+        "dlt[${DLT_DEFAULT_DESTINATION},filesystem,s3,sftp]~=${DLT_VERSION}" \
     # Database drivers for dlt sql_database source (not covered by destination extras)
     && python3 -m pip install --no-cache-dir \
         numpy \
+        openpyxl \
         oracledb \
         pymysql \
         pyodbc \
