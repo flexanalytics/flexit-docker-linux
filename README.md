@@ -161,6 +161,60 @@ AUTO_MANAGE_CERTS=true
 sudo ./scripts/restart_server.sh
 ```
 
+## Auto-Deploy
+
+FlexIt can trigger its own redeploy from the in-app **Configuration → Deployment** view. When an admin clicks "Deploy", the running container writes a marker file at `/opt/flexit/webcontent/.deploy_request`; a cron job on the host watches for that marker and runs `deploy_server.sh` when it's present.
+
+This lets admins update versions, pull new images, or apply config changes from the UI without SSHing into the box.
+
+### Enable on a fresh install
+
+1. Install the cron entry. The repo ships an example at `scripts/crontab.example`:
+
+   ```bash
+   sudo crontab -e
+   # paste the contents of scripts/crontab.example, adjusting the path
+   ```
+
+   The default polls once per minute. The script no-ops silently when there's nothing to deploy, so the load is negligible.
+
+2. Make sure the log file is writable by whichever user owns the crontab. For `sudo crontab -e` (root), `/var/log/flexit-deploy.log` is created on first write.
+
+3. (Optional) Tune behavior via `.env`:
+
+   ```dotenv
+   ## -- [optional] auto-deploy behavior -- ##
+   # What to do if a deploy fails. "retry" (default) leaves the marker
+   # in place so the next cron tick tries again. "clear" removes it
+   # after a failure so a misconfigured deploy doesn't loop forever.
+   AUTO_DEPLOY_FAIL_BEHAVIOR=retry
+
+   # Override the docker invocation (e.g., for rootless or custom binaries).
+   # Leave unset to use plain `docker`, falling back to `sudo -n docker`.
+   # DOCKER=docker
+   ```
+
+### How it works
+
+* The cron script (`scripts/auto_deploy_server.sh`) is **lock-protected** — only one deploy can run at a time even if cron ticks during a long deploy.
+* On a successful deploy, the marker is **not** cleared by the host. The newly-booted FlexIt clears it during its own boot-reconcile so it can audit the deploy request first. Don't delete the marker manually.
+* On a failed deploy, the marker is left in place by default (so the next tick retries). Set `AUTO_DEPLOY_FAIL_BEHAVIOR=clear` in `.env` to remove it instead.
+
+### Verify it's working
+
+After installing the cron, trigger a deploy from the FlexIt UI and watch the log:
+
+```bash
+sudo tail -f /var/log/flexit-deploy.log
+```
+
+You should see the marker payload, the deploy steps, and a `auto-deploy: success` line within a minute.
+
+If you see `cannot access docker` errors in the log, the user running the cron doesn't have docker access. Three fixes:
+- Install via `sudo crontab -e` so it runs as root (simplest).
+- Add the user to the docker group: `sudo usermod -aG docker $USER` and log out/in.
+- Configure passwordless sudo for the docker binary.
+
 ## Installing a patch
 
 The standard deployment pulls versions from the repo to deploy standard versions of FlexIt. If a patch is issued and you need to apply a non-standard FlexIt version, then you can follow these instructions to build the new image:
@@ -211,3 +265,13 @@ sudo ./scripts/restart_server.sh
   ```bash
   docker logs flexit-analytics
   ```
+
+### 2. Auto-Deploy Not Firing
+- Confirm the cron is installed: `sudo crontab -l`
+- Check the deploy log: `sudo tail -100 /var/log/flexit-deploy.log`
+- Trigger a deploy from the UI, then within ~60s check whether the marker appears:
+  ```bash
+  sudo docker exec flexit-analytics cat /opt/flexit/webcontent/.deploy_request
+  ```
+  If the marker is missing, the UI deploy action didn't write it — check the FlexIt container logs.
+- If the marker is present but cron isn't picking it up, the cron user likely can't access docker (see [Verify it's working](#verify-its-working)).

@@ -1,0 +1,20 @@
+# FlexIt auto-deploy cron — install with `sudo crontab -e` (or your
+# user's crontab if it has passwordless docker access), then paste in
+# one of the lines below. Adjust the path to match where you cloned
+# this repo.
+#
+# Required:
+#   PATH  — cron starts with a minimal PATH; add /usr/local/bin so
+#           docker + flock are found.
+#
+# Cadence: every minute is the standard choice. The script no-ops in
+# milliseconds when there's nothing to deploy, so the load is
+# negligible. If you want a calmer schedule, use */5 instead.
+
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# Poll every minute — recommended.
+* * * * * /opt/flexit-docker-linux/scripts/auto_deploy_server.sh >> /var/log/flexit-deploy.log 2>&1
+
+# Or poll every 5 minutes if you prefer a calmer cadence.
+# */5 * * * * /opt/flexit-docker-linux/scripts/auto_deploy_server.sh >> /var/log/flexit-deploy.log 2>&1
