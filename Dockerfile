@@ -4,8 +4,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Set environment variables for FlexIt, Sling, dbt, and dlt versions
 ENV FLEXIT_VERSION=latest
-ENV DBT_VERSION=1.9
-ENV DLT_VERSION=1.20
+ENV DBT_VERSION=1.11.0
+ENV DLT_VERSION=1.20.0
 
 # dlt verified sources to pre-install (space-separated)
 # These are API sources that require dlt init (sql_database is built-in)
@@ -18,6 +18,7 @@ ENV DLT_DEFAULT_DESTINATION=${DLT_DEFAULT_DESTINATION}
 # Central location for dlt verified sources (accessible from any deployment folder)
 ENV DLT_SOURCES_PATH=/opt/flexit/dlt_sources
 ENV PYTHONPATH="${DLT_SOURCES_PATH}:${PYTHONPATH}"
+ENV MIMALLOC_PURGE_DELAY=0
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -29,6 +30,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libaio1 \
     libgssapi-krb5-2 \
     libpq-dev \
+    openssh-client \
     python3-full \
     python3-pip \
     python3.11 \
@@ -49,6 +51,7 @@ RUN \
     && python3 -m pip install --no-cache-dir \
         "dbt-core~=${DBT_VERSION}" \
         "dbt-redshift~=${DBT_VERSION}" \
+        "dbt-snowflake~=${DBT_VERSION}" \
     # dlt with destination + source extras
     && python3 -m pip install --no-cache-dir \
         "dlt[${DLT_DEFAULT_DESTINATION},filesystem,s3,sftp]~=${DLT_VERSION}" \
