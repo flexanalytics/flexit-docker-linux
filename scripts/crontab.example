@@ -14,7 +14,7 @@
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # Poll every minute — recommended.
-* * * * * /opt/flexit-docker-linux/scripts/auto_deploy_server.sh >> /var/log/flexit-deploy.log 2>&1
+* * * * * /opt/flexit/flexit-docker-linux/scripts/auto_deploy_server.sh >> /var/log/flexit-deploy.log 2>&1
 
 # Or poll every 5 minutes if you prefer a calmer cadence.
-# */5 * * * * /opt/flexit-docker-linux/scripts/auto_deploy_server.sh >> /var/log/flexit-deploy.log 2>&1
+# */5 * * * * /opt/flexit/flexit-docker-linux/scripts/auto_deploy_server.sh >> /var/log/flexit-deploy.log 2>&1
