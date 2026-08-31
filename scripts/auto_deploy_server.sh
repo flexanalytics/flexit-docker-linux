@@ -15,6 +15,10 @@
 #   - marker present, ready    → run deploy_server.sh
 #   - already deploying        → exit 0 (lock-protected)
 #   - retry owed               → run deploy_server.sh even with the stack down
+#   - new commit on $GIT_DEPLOY_BRANCH → run deploy_server.sh
+#
+# The git trigger is the out-of-band path: push to the deploy branch and the
+# next tick deploys, no SSH needed. Unset GIT_DEPLOY_BRANCH disables it.
 #
 # A deploy that fails after teardown leaves the marker sealed inside a stopped
 # container, so the in-container check alone can never see it again. $RETRY_STATE
@@ -48,6 +52,26 @@ LOCK=/tmp/flexit-auto-deploy.$(id -u).lock
 # Reboot clears it, which is fine: the stack comes back and the marker is live again.
 RETRY_STATE=/tmp/flexit-auto-deploy-retry.$(id -u).state
 MAX_ATTEMPTS=${AUTO_DEPLOY_MAX_ATTEMPTS:-5}
+
+# Branch watched for the git trigger; empty disables it entirely.
+GIT_DEPLOY_BRANCH=${GIT_DEPLOY_BRANCH:-}
+# Survives reboots, unlike $RETRY_STATE — a pushed commit must not be forgotten.
+STATE_DIR=${AUTO_DEPLOY_STATE_DIR:-/var/lib/flexit}
+HANDLED_SHA_FILE="$STATE_DIR/last_handled_sha"
+
+# Git must never run as root against a user-owned checkout: root-owned objects
+# under .git break every later non-sudo git call.
+GIT_USER=""
+if [ -n "${SUDO_USER:-}" ]; then
+    GIT_USER="$SUDO_USER"
+elif [ "$(id -u)" -eq 0 ]; then
+    GIT_USER=$(stat -c '%U' ../.git 2>/dev/null || echo root)
+fi
+if [ -n "$GIT_USER" ] && [ "$GIT_USER" != "root" ]; then
+    git_cmd() { sudo -u "$GIT_USER" git "$@"; }
+else
+    git_cmd() { git "$@"; }
+fi
 
 # Decide how to invoke docker. Honors $DOCKER env override; otherwise
 # tries plain `docker` (root cron, docker-group member, or rootless),
@@ -83,7 +107,27 @@ if [ -f "$RETRY_STATE" ]; then
     case "$ATTEMPTS" in ''|*[!0-9]*) ATTEMPTS=0 ;; esac
 fi
 
-if [ "$CONTAINER_UP" -eq 1 ]; then
+# Git trigger. Compares the tip of the deploy branch against the last revision
+# this script finished acting on — deployed or given up on.
+GIT_TRIGGER=0
+REMOTE_SHA=""
+if [ -n "$GIT_DEPLOY_BRANCH" ]; then
+    mkdir -p "$STATE_DIR"
+    if git_cmd fetch --quiet origin "$GIT_DEPLOY_BRANCH" 2>/dev/null; then
+        REMOTE_SHA=$(git_cmd rev-parse FETCH_HEAD)
+        if [ ! -f "$HANDLED_SHA_FILE" ]; then
+            # First run adopts the current revision rather than deploying on install.
+            echo "$REMOTE_SHA" > "$HANDLED_SHA_FILE"
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] auto-deploy: baselined $GIT_DEPLOY_BRANCH at $REMOTE_SHA"
+        elif [ "$REMOTE_SHA" != "$(cat "$HANDLED_SHA_FILE")" ]; then
+            GIT_TRIGGER=1
+        fi
+    fi
+fi
+
+if [ "$GIT_TRIGGER" -eq 1 ]; then
+    : # New revision on the deploy branch — deploy regardless of marker or stack state.
+elif [ "$CONTAINER_UP" -eq 1 ]; then
     # Marker check via docker exec. Both calls return non-zero (and produce no
     # output) when the marker isn't present or isn't ready — the silent exit
     # keeps cron logs clean. Reaching here healthy also retires a stale retry.
@@ -108,7 +152,9 @@ if ! flock -n 9; then
 fi
 
 echo "============================================================"
-if [ "$CONTAINER_UP" -eq 1 ]; then
+if [ "$GIT_TRIGGER" -eq 1 ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] auto-deploy: new revision on $GIT_DEPLOY_BRANCH — $REMOTE_SHA"
+elif [ "$CONTAINER_UP" -eq 1 ]; then
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] auto-deploy: marker found, status=ready"
     echo "Marker payload:"
     $DOCKER exec "$CONTAINER_NAME" cat "$MARKER"
@@ -123,6 +169,9 @@ DEPLOY_RC=0
 
 if [ $DEPLOY_RC -eq 0 ]; then
     rm -f "$RETRY_STATE"
+    if [ -n "$REMOTE_SHA" ]; then
+        echo "$REMOTE_SHA" > "$HANDLED_SHA_FILE"
+    fi
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] auto-deploy: success"
     echo "Marker will be cleared by the new Flexit on boot-reconcile."
 else
@@ -139,6 +188,11 @@ else
         ATTEMPTS=$((ATTEMPTS + 1))
         if [ "$ATTEMPTS" -ge "$MAX_ATTEMPTS" ]; then
             rm -f "$RETRY_STATE"
+            # Record the revision so the git trigger stops re-firing on it too;
+            # pushing a new commit is what restarts the cycle.
+            if [ -n "$REMOTE_SHA" ]; then
+                echo "$REMOTE_SHA" > "$HANDLED_SHA_FILE"
+            fi
             echo "auto-deploy: giving up after $ATTEMPTS failed attempts — manual intervention required. Raise AUTO_DEPLOY_MAX_ATTEMPTS in .env to retry longer."
         else
             echo "$ATTEMPTS" > "$RETRY_STATE"

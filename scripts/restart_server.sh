@@ -38,7 +38,8 @@ if ! git_cmd diff --quiet || ! git_cmd diff --cached --quiet || [ -n "$(git_cmd 
   STASHED=1
 fi
 
-git_cmd pull origin HEAD --ff-only
+# Follows the git trigger's branch when set, so both act on the same ref.
+git_cmd pull origin "${GIT_DEPLOY_BRANCH:-HEAD}" --ff-only
 
 if [ "$STASHED" = "1" ]; then
   git_cmd stash pop
