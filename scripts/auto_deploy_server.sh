@@ -9,11 +9,16 @@
 #   * * * * * /path/to/scripts/auto_deploy_server.sh >> /var/log/flexit-deploy.log 2>&1
 #
 # Behavior:
-#   - container not running    → exit 0 silently (nothing to deploy yet)
+#   - container not running    → exit 0 silently, unless a retry is owed
 #   - marker absent            → exit 0 silently
 #   - marker present, !ready   → exit 0 silently
 #   - marker present, ready    → run deploy_server.sh
 #   - already deploying        → exit 0 (lock-protected)
+#   - retry owed               → run deploy_server.sh even with the stack down
+#
+# A deploy that fails after teardown leaves the marker sealed inside a stopped
+# container, so the in-container check alone can never see it again. $RETRY_STATE
+# is the host-side record of a deploy still owed, capped at $AUTO_DEPLOY_MAX_ATTEMPTS.
 #
 # After deploy, the marker is NOT cleared by this script. The new Flexit
 # clears it during boot-reconcile (see server/boot/deploy-reconcile.js in
@@ -24,6 +29,14 @@ set -e
 
 cd "$(dirname "$0")"
 
+# Loaded up front so DOCKER and the AUTO_DEPLOY_* knobs apply to every branch
+# below, detect_docker included.
+if [ -f ../.env ]; then
+    set -a
+    source ../.env
+    set +a
+fi
+
 CONTAINER_NAME=flexit-analytics
 MARKER=/opt/flexit/webcontent/.deploy_request
 # Per-uid lock path so root-cron and user-test invocations don't collide on
@@ -31,6 +44,10 @@ MARKER=/opt/flexit/webcontent/.deploy_request
 # semantics — concurrent ticks of the *same* user (which is what cron does)
 # still serialize correctly.
 LOCK=/tmp/flexit-auto-deploy.$(id -u).lock
+# Host-side, so it stays readable when the container it describes is gone.
+# Reboot clears it, which is fine: the stack comes back and the marker is live again.
+RETRY_STATE=/tmp/flexit-auto-deploy-retry.$(id -u).state
+MAX_ATTEMPTS=${AUTO_DEPLOY_MAX_ATTEMPTS:-5}
 
 # Decide how to invoke docker. Honors $DOCKER env override; otherwise
 # tries plain `docker` (root cron, docker-group member, or rootless),
@@ -55,20 +72,29 @@ detect_docker() {
 }
 DOCKER=$(detect_docker)
 
-# Bail quickly if container isn't running — no Flexit means no UI to have
-# requested anything. Keep this silent so the log doesn't grow during
-# container outages.
-if ! $DOCKER ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
-    exit 0
+CONTAINER_UP=0
+if $DOCKER ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+    CONTAINER_UP=1
 fi
 
-# Marker check via docker exec. Both calls return non-zero (and produce no
-# output) when the marker isn't present or isn't ready — the silent exit
-# keeps cron logs clean.
-if ! $DOCKER exec "$CONTAINER_NAME" test -f "$MARKER" 2>/dev/null; then
-    exit 0
+ATTEMPTS=0
+if [ -f "$RETRY_STATE" ]; then
+    ATTEMPTS=$(cat "$RETRY_STATE" 2>/dev/null || echo 0)
+    case "$ATTEMPTS" in ''|*[!0-9]*) ATTEMPTS=0 ;; esac
 fi
-if ! $DOCKER exec "$CONTAINER_NAME" grep -q '"status": *"ready"' "$MARKER" 2>/dev/null; then
+
+if [ "$CONTAINER_UP" -eq 1 ]; then
+    # Marker check via docker exec. Both calls return non-zero (and produce no
+    # output) when the marker isn't present or isn't ready — the silent exit
+    # keeps cron logs clean. Reaching here healthy also retires a stale retry.
+    if ! $DOCKER exec "$CONTAINER_NAME" test -f "$MARKER" 2>/dev/null \
+       || ! $DOCKER exec "$CONTAINER_NAME" grep -q '"status": *"ready"' "$MARKER" 2>/dev/null; then
+        rm -f "$RETRY_STATE"
+        exit 0
+    fi
+elif [ "$ATTEMPTS" -eq 0 ]; then
+    # Stack is down and nothing is owed — not this script's problem. Silent so
+    # the log doesn't grow during container outages.
     exit 0
 fi
 
@@ -82,23 +108,21 @@ if ! flock -n 9; then
 fi
 
 echo "============================================================"
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] auto-deploy: marker found, status=ready"
-echo "Marker payload:"
-$DOCKER exec "$CONTAINER_NAME" cat "$MARKER"
-echo
-echo "============================================================"
-
-# Load .env so AUTO_DEPLOY_FAIL_BEHAVIOR (and anything else) is available.
-if [ -f ../.env ]; then
-    set -a
-    source ../.env
-    set +a
+if [ "$CONTAINER_UP" -eq 1 ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] auto-deploy: marker found, status=ready"
+    echo "Marker payload:"
+    $DOCKER exec "$CONTAINER_NAME" cat "$MARKER"
+    echo
+else
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] auto-deploy: retrying owed deploy (attempt $((ATTEMPTS + 1))/$MAX_ATTEMPTS); container is down, marker unreadable"
 fi
+echo "============================================================"
 
 DEPLOY_RC=0
 ./deploy_server.sh || DEPLOY_RC=$?
 
 if [ $DEPLOY_RC -eq 0 ]; then
+    rm -f "$RETRY_STATE"
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] auto-deploy: success"
     echo "Marker will be cleared by the new Flexit on boot-reconcile."
 else
@@ -107,11 +131,19 @@ else
     # still reachable AND fail-mode says "clear", drop it so we don't loop.
     # Default: leave it alone for the next tick to retry.
     if [ "${AUTO_DEPLOY_FAIL_BEHAVIOR:-retry}" = "clear" ]; then
+        rm -f "$RETRY_STATE"
         $DOCKER ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$" \
             && $DOCKER exec "$CONTAINER_NAME" rm -f "$MARKER" \
             && echo "AUTO_DEPLOY_FAIL_BEHAVIOR=clear — marker removed."
     else
-        echo "Marker left in place; next cron tick will retry. Set AUTO_DEPLOY_FAIL_BEHAVIOR=clear in .env to disable retry."
+        ATTEMPTS=$((ATTEMPTS + 1))
+        if [ "$ATTEMPTS" -ge "$MAX_ATTEMPTS" ]; then
+            rm -f "$RETRY_STATE"
+            echo "auto-deploy: giving up after $ATTEMPTS failed attempts — manual intervention required. Raise AUTO_DEPLOY_MAX_ATTEMPTS in .env to retry longer."
+        else
+            echo "$ATTEMPTS" > "$RETRY_STATE"
+            echo "Retry $ATTEMPTS/$MAX_ATTEMPTS owed; next cron tick will retry even if the container stays down."
+        fi
     fi
     exit $DEPLOY_RC
 fi

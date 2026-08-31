@@ -25,5 +25,9 @@ echo "Stopping and removing containers with: docker compose $COMPOSE_FILES down 
 sudo docker compose $COMPOSE_FILES down --remove-orphans
 
 if [[ "$AUTO_MANAGE_CERTS" == "true" ]]; then
-    sudo docker compose -f docker-compose-proxy.yml up --abort-on-container-exit
+    # Non-fatal: a lego failure here would leave the stack torn down and the
+    # auto-deploy marker unreachable, so cron could never retry.
+    if ! sudo docker compose -f docker-compose-proxy.yml up --abort-on-container-exit; then
+        echo "WARNING: certificate renewal failed; continuing with the existing certificate" >&2
+    fi
 fi
