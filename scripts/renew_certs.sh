@@ -3,7 +3,8 @@
 set -e  # Exit immediately if a command fails
 
 # Change to script directory to ensure relative paths work
-cd "$(dirname "$0")"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR"
 
 # Load environment variables from .env file one directory up if it exists
 if [ -f ../.env ]; then
@@ -26,5 +27,6 @@ else
     -newkey rsa:2048 \
     -keyout "$KEY_PATH" \
     -out "$CRT_PATH" \
-    -subj "/CN=${PUBLIC_DNS}"
+    -config "$SCRIPT_DIR/openssl.conf" \
+    -extensions v3_req
 fi
