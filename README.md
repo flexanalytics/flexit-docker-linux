@@ -161,6 +161,20 @@ AUTO_MANAGE_CERTS=true
 sudo ./scripts/restart_server.sh
 ```
 
+#### Renewal failures
+
+Renewal runs on every restart, but the ACME client only acts inside its own 30-day window and exits cleanly otherwise. A renewal that *fails* therefore means the certificate is already inside that window.
+
+A single failure is usually transient, and aborting the restart there would leave the stack down. Instead the failure is logged and the restart continues on the existing certificate. Consecutive failures are counted, and once they reach `CERT_RENEW_MAX_FAILURES` the restart aborts loudly — spending the 30-day buffer deliberately instead of either failing on every transient error or staying quiet until the certificate expires.
+
+```dotenv
+## -- [optional] certificate renewal -- ##
+# Consecutive renewal failures tolerated before a restart aborts.
+CERT_RENEW_MAX_FAILURES=3
+```
+
+The counter lives at `$CERT_PATH/.renew_failures` and is deleted on the first clean run.
+
 ## Auto-Deploy
 
 FlexIt can trigger its own redeploy from the in-app **Configuration → Deployment** view. When an admin clicks "Deploy", the running container writes a marker file at `/opt/flexit/webcontent/.deploy_request`; a cron job on the host watches for that marker and runs `deploy_server.sh` when it's present.
@@ -189,6 +203,13 @@ This lets admins update versions, pull new images, or apply config changes from 
    # after a failure so a misconfigured deploy doesn't loop forever.
    AUTO_DEPLOY_FAIL_BEHAVIOR=retry
 
+   # How many times a failed deploy is retried before the script gives up
+   # and logs for manual intervention. Ignored when FAIL_BEHAVIOR=clear.
+   AUTO_DEPLOY_MAX_ATTEMPTS=5
+
+   # Where host-side deploy state is kept. Created on first run.
+   AUTO_DEPLOY_STATE_DIR=/var/lib/flexit
+
    # Override the docker invocation (e.g., for rootless or custom binaries).
    # Leave unset to use plain `docker`, falling back to `sudo -n docker`.
    # DOCKER=docker
@@ -199,6 +220,42 @@ This lets admins update versions, pull new images, or apply config changes from 
 * The cron script (`scripts/auto_deploy_server.sh`) is **lock-protected** — only one deploy can run at a time even if cron ticks during a long deploy.
 * On a successful deploy, the marker is **not** cleared by the host. The newly-booted FlexIt clears it during its own boot-reconcile so it can audit the deploy request first. Don't delete the marker manually.
 * On a failed deploy, the marker is left in place by default (so the next tick retries). Set `AUTO_DEPLOY_FAIL_BEHAVIOR=clear` in `.env` to remove it instead.
+* A deploy tears the stack down before rebuilding it, so a failure partway through leaves the marker sealed inside a container that no longer exists. The script records the owed retry on the host instead, and will retry with the stack down. After `AUTO_DEPLOY_MAX_ATTEMPTS` consecutive failures it stops and logs a `giving up` line rather than rebuilding every minute forever.
+
+### Deploying by git push
+
+The UI marker requires a healthy container. As a second, out-of-band trigger, the cron script can also watch a branch and deploy whenever it advances — useful when the box is unreachable by SSH, or when FlexIt itself isn't running.
+
+It is off unless `GIT_DEPLOY_BRANCH` is set.
+
+1. Point the checkout at the branch you'll deploy from:
+
+   ```bash
+   git checkout deploy
+   ```
+
+   This matters: the pull is `--ff-only` against that branch, so the checkout has to track it.
+
+2. Set the branch in `.env`:
+
+   ```dotenv
+   ## -- [optional] git deploy trigger -- ##
+   # Branch the host watches. Pushing to it triggers a deploy. Empty disables.
+   GIT_DEPLOY_BRANCH=deploy
+   ```
+
+3. Nothing else changes — the same cron entry serves both triggers, with the same lock, log, and retry accounting.
+
+To deploy, push to the branch. The next tick (within a minute) fetches it, sees a new revision, and deploys:
+
+```bash
+git commit --allow-empty -m "deploy"
+git push origin deploy
+```
+
+The revision the host last acted on is recorded in `$AUTO_DEPLOY_STATE_DIR/last_handled_sha`. It's written on success **and** on give-up, so a commit that can't deploy won't retry forever — push a new commit to try again. On the very first tick after enabling, the current tip is recorded without deploying, so arming the trigger doesn't itself cause a deploy.
+
+The host only needs read access to the repo. It never writes back.
 
 ### Verify it's working
 
@@ -275,3 +332,19 @@ sudo ./scripts/restart_server.sh
   ```
   If the marker is missing, the UI deploy action didn't write it — check the FlexIt container logs.
 - If the marker is present but cron isn't picking it up, the cron user likely can't access docker (see [Verify it's working](#verify-its-working)).
+
+### 3. Deploy Failed and the Site Is Down
+- Check the tail of `/var/log/flexit-deploy.log` for the failing step.
+- A retry is owed automatically. If the log ends in `giving up after N failed attempts`, the retries are exhausted and the cause needs fixing before anything else will run.
+- To recover by hand: `sudo ./scripts/restart_server.sh`
+
+### 4. Git Push Doesn't Trigger a Deploy
+- Confirm the trigger is armed: `GIT_DEPLOY_BRANCH` must be set in `.env`.
+- Confirm the checkout tracks that branch: `git branch --show-current`
+- Compare what the host has acted on against the branch tip:
+  ```bash
+  cat /var/lib/flexit/last_handled_sha
+  git ls-remote origin deploy
+  ```
+  Matching values mean the host considers that revision handled — either it deployed, or it gave up on it. Push a new commit to retry.
+- A failed `git fetch` disables the trigger silently for that tick. Check that the host can reach the remote and that `.git` isn't owned by root.
