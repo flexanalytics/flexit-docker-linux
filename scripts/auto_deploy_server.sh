@@ -111,10 +111,20 @@ fi
 # this script finished acting on — deployed or given up on.
 GIT_TRIGGER=0
 REMOTE_SHA=""
+# The state dir is normally root-owned; a non-root run should skip the git
+# trigger rather than die and take the marker path down with it.
 if [ -n "$GIT_DEPLOY_BRANCH" ]; then
-    mkdir -p "$STATE_DIR"
-    if git_cmd fetch --quiet origin "$GIT_DEPLOY_BRANCH" 2>/dev/null; then
-        REMOTE_SHA=$(git_cmd rev-parse FETCH_HEAD)
+    if ! mkdir -p "$STATE_DIR" 2>/dev/null || [ ! -w "$STATE_DIR" ]; then
+        echo "WARNING: $STATE_DIR not writable by $(id -un) — git trigger skipped. Create it once with: sudo mkdir -p $STATE_DIR" >&2
+        GIT_DEPLOY_BRANCH=""
+    fi
+fi
+
+if [ -n "$GIT_DEPLOY_BRANCH" ]; then
+    # ls-remote is a single ref query — no object negotiation, so the steady
+    # state of polling every minute stays cheap. The pull happens at deploy time.
+    REMOTE_SHA=$(git_cmd ls-remote origin "refs/heads/$GIT_DEPLOY_BRANCH" 2>/dev/null | awk '{print $1}')
+    if [ -n "$REMOTE_SHA" ]; then
         if [ ! -f "$HANDLED_SHA_FILE" ]; then
             # First run adopts the current revision rather than deploying on install.
             echo "$REMOTE_SHA" > "$HANDLED_SHA_FILE"

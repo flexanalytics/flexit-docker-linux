@@ -228,30 +228,28 @@ The UI marker requires a healthy container. As a second, out-of-band trigger, th
 
 It is off unless `GIT_DEPLOY_BRANCH` is set.
 
-1. Point the checkout at the branch you'll deploy from:
+The branch is a **signal, not a payload**. The host stays checked out on its normal branch and deploys that as always; it only watches the named branch for its tip to move. The branch's contents are never checked out or merged.
 
-   ```bash
-   git checkout deploy
-   ```
-
-   This matters: the pull is `--ff-only` against that branch, so the checkout has to track it.
-
-2. Set the branch in `.env`:
+1. Set the branch in `.env`:
 
    ```dotenv
    ## -- [optional] git deploy trigger -- ##
-   # Branch the host watches. Pushing to it triggers a deploy. Empty disables.
+   # Branch the host watches. Moving its tip triggers a deploy. Empty disables.
    GIT_DEPLOY_BRANCH=deploy
    ```
 
-3. Nothing else changes — the same cron entry serves both triggers, with the same lock, log, and retry accounting.
+2. Nothing else changes — the same cron entry serves both triggers, with the same lock, log, and retry accounting.
 
-To deploy, push to the branch. The next tick (within a minute) fetches it, sees a new revision, and deploys:
+Polling uses `git ls-remote`, a single ref query with no object negotiation, so the per-minute cost is one short SSH round trip. Objects are only transferred by the `git pull` that runs as part of an actual deploy.
+
+To force a restart, push a commit to the branch. The next tick (within a minute) sees the tip has moved and redeploys:
 
 ```bash
-git commit --allow-empty -m "deploy"
-git push origin deploy
+git checkout deploy && git commit --allow-empty -m "restart" && git push
+git checkout main
 ```
+
+The commit's contents are irrelevant — an empty commit is the normal case, since the usual reason to reach for this is restarting a wedged stack rather than shipping code. The host pulls `main` on the way through, so if `main` has advanced you get those changes too; if it hasn't, the pull is a no-op and you get a clean restart.
 
 The revision the host last acted on is recorded in `$AUTO_DEPLOY_STATE_DIR/last_handled_sha`. It's written on success **and** on give-up, so a commit that can't deploy won't retry forever — push a new commit to try again. On the very first tick after enabling, the current tip is recorded without deploying, so arming the trigger doesn't itself cause a deploy.
 
@@ -340,11 +338,14 @@ sudo ./scripts/restart_server.sh
 
 ### 4. Git Push Doesn't Trigger a Deploy
 - Confirm the trigger is armed: `GIT_DEPLOY_BRANCH` must be set in `.env`.
-- Confirm the checkout tracks that branch: `git branch --show-current`
+- The host stays on its normal branch; it never checks the signal branch out. `git branch --show-current` on the host should show `main`, not the signal branch.
 - Compare what the host has acted on against the branch tip:
   ```bash
   cat /var/lib/flexit/last_handled_sha
   git ls-remote origin deploy
   ```
   Matching values mean the host considers that revision handled — either it deployed, or it gave up on it. Push a new commit to retry.
-- A failed `git fetch` disables the trigger silently for that tick. Check that the host can reach the remote and that `.git` isn't owned by root.
+- A failed ref query disables the trigger silently for that tick. Check that the host can reach the remote and that `.git` isn't owned by root:
+  ```bash
+  sudo -u <repo-owner> git ls-remote origin refs/heads/deploy
+  ```
