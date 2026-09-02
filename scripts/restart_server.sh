@@ -12,11 +12,9 @@ if [ -f ../.env ]; then
     set +a
 fi
 
-# Restart services
-echo "Stopping and removing containers..."
-./stop_server.sh
-
-# Pull from the repo.
+# Pull from the repo BEFORE tearing anything down. A failed pull — bad
+# credentials, no network, a diverged checkout — then aborts with the stack
+# still serving, instead of leaving the site down until someone intervenes.
 #
 # Git ops must NOT run as root. When this script (or deploy_server.sh
 # upstream) is invoked via sudo, plain `git` would run as root and
@@ -44,9 +42,15 @@ if [ "$STASHED" = "1" ]; then
   git_cmd stash pop
 fi
 
+# Also before teardown: the containers read the cert off disk when they
+# start, so generating it early costs nothing and keeps an openssl failure
+# out of the outage window.
 if [[ "$USE_SELF_SIGNED_CERT" == "true" ]]; then
   echo "Checking renewal of self-signed cert"
   ./renew_certs.sh
 fi
+
+echo "Stopping and removing containers..."
+./stop_server.sh
 
 ./start_server.sh
