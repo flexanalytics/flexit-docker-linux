@@ -64,6 +64,9 @@ RUN \
         pyodbc \
         pyarrow \
         pandas \
+        sqlalchemy \
+        snowflake-sqlalchemy \
+        snowcap~=1.0.29 \
     && python3 -m pip install --no-cache-dir dbt-colibri \
     # symlink python3 to python for convenience
     && ln -s /usr/bin/python3 /usr/local/bin/python
