@@ -1,0 +1,6 @@
+.git
+.gitignore
+.github
+.dockerignore
+*.bak
+README.md
