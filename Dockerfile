@@ -41,7 +41,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libgssapi-krb5-2 \
         libpq-dev \
         openssh-client \
-        python3-full \
+        python3-venv \
         python3-pip \
         sudo \
         systemd \
