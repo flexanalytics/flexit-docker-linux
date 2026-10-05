@@ -29,6 +29,24 @@ elif [ "${#FLEXIT_ENCRYPTION_KEY}" -ne 32 ]; then
     ERRORS+=("FLEXIT_ENCRYPTION_KEY must be 32 characters (got ${#FLEXIT_ENCRYPTION_KEY})")
 fi
 
+# Must match what requirements.in compiles into constraints.txt.
+SUPPORTED_ADAPTERS="snowflake redshift postgres oracle"
+SUPPORTED_DESTINATIONS="snowflake redshift postgres sqlalchemy"
+
+for adapter in $(echo "${DBT_ADAPTERS:-}" | tr ',' ' '); do
+    case " $SUPPORTED_ADAPTERS " in
+        *" $adapter "*) ;;
+        *) ERRORS+=("DBT_ADAPTERS: '$adapter' is not supported (choose from: $SUPPORTED_ADAPTERS)") ;;
+    esac
+done
+
+if [ -n "${DLT_DEFAULT_DESTINATION:-}" ]; then
+    case " $SUPPORTED_DESTINATIONS " in
+        *" $DLT_DEFAULT_DESTINATION "*) ;;
+        *) ERRORS+=("DLT_DEFAULT_DESTINATION: '$DLT_DEFAULT_DESTINATION' is not supported (choose from: $SUPPORTED_DESTINATIONS)") ;;
+    esac
+fi
+
 if [ "$USE_NGINX" = "true" ] || [ "$AUTO_MANAGE_CERTS" = "true" ] || [ "$USE_SELF_SIGNED_CERT" = "true" ]; then
     [ -z "$PUBLIC_DNS" ] || [ "$PUBLIC_DNS" = "a.example.com" ] && ERRORS+=("PUBLIC_DNS must be set to the server's domain")
     [ -z "$CERT_PATH" ] && ERRORS+=("CERT_PATH is empty")

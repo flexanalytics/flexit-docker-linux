@@ -31,6 +31,10 @@ At minimum, set:
 - `DB_USER`, `DB_PASSWORD`, `DB_NAME` — credentials for the content database. The template password is rejected.
 - `FLEXIT_ENCRYPTION_KEY` — a 32-character key that encrypts stored datasource and integration secrets. Generate one with `openssl rand -hex 16`. Keep it somewhere safe and never change it: losing it makes saved secrets unrecoverable.
 - `FLEXIT_VERSION` — the FlexIt release to install, or `latest`.
+- `DBT_ADAPTERS` — the dbt adapters this install needs, comma-separated with no spaces. Supported: `snowflake`, `redshift`, `postgres`, `oracle`. Installs that leave it unset get `snowflake,redshift`.
+- `DLT_DEFAULT_DESTINATION` — the dlt destination: `snowflake`, `redshift`, `postgres`, or `sqlalchemy`. dlt has no native Oracle destination; Oracle installs use `sqlalchemy`.
+
+Both are baked into the image at build time, so changing either one takes effect on the next restart, which rebuilds. Every supported combination installs the same package versions from `constraints.txt`. To change a version or add an adapter, edit `requirements.in` and regenerate the constraints with the command at the top of `constraints.txt`.
 
 If you're serving over HTTPS through the bundled nginx, also set `USE_NGINX`, `PUBLIC_DNS` and `CERT_PATH` (see [Configure SSL](#configure-ssl)), plus `CERT_EMAIL` and `AUTO_MANAGE_CERTS` for Let's Encrypt.
 

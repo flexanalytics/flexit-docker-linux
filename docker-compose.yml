@@ -10,10 +10,13 @@ services:
       dockerfile: Dockerfile
       args:
         FLEXIT_VERSION: ${FLEXIT_VERSION}
+        DBT_ADAPTERS: ${DBT_ADAPTERS:-snowflake,redshift}
+        DLT_DEFAULT_DESTINATION: ${DLT_DEFAULT_DESTINATION:-snowflake}
     image: ghcr.io/flexanalytics/flexit:${FLEXIT_VERSION}
     pull_policy: missing
     env_file: .env
     restart: unless-stopped
+    stop_grace_period: 60s
     depends_on:
       flexit-content-database:
         condition: service_healthy

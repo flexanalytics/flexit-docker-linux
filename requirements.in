@@ -1,0 +1,18 @@
+# Every package and extra any install may select; constraints.txt is compiled from this
+# so each DBT_ADAPTERS / DLT_DEFAULT_DESTINATION combination gets the same tested versions.
+dbt-core==1.12.3
+dbt-snowflake==1.12.0
+dbt-redshift==1.11.1
+dbt-postgres==1.11.0
+dbt-oracle
+dlt[snowflake,redshift,postgres,sqlalchemy,filesystem,s3,sftp,sql_database]==1.30.0
+numpy==2.2.6
+openpyxl==3.1.5
+oracledb==4.0.2
+pymysql==1.2.0
+pyodbc==5.3.0
+pyarrow==25.0.1
+pandas==2.3.3
+sqlalchemy==2.0.52
+snowflake-sqlalchemy
+dbt-colibri==0.3.6
