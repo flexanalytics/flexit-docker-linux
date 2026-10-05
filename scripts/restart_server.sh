@@ -12,6 +12,8 @@ if [ -f ../.env ]; then
     set +a
 fi
 
+./check_env.sh
+
 # Pull from the repo BEFORE tearing anything down. A failed pull — bad
 # credentials, no network, a diverged checkout — then aborts with the stack
 # still serving, instead of leaving the site down until someone intervenes.
@@ -23,9 +25,16 @@ fi
 # permission for adding an object to repository database".
 #
 # When $SUDO_USER is set, drop back to the invoking user for every git
-# call. Otherwise (run directly without sudo) just use `git`.
+# call. Under root cron $SUDO_USER is unset, so fall back to the
+# checkout's owner. Otherwise (run directly without sudo) just use `git`.
+GIT_USER=""
 if [ -n "$SUDO_USER" ]; then
-    git_cmd() { sudo -u "$SUDO_USER" git "$@"; }
+    GIT_USER="$SUDO_USER"
+elif [ "$(id -u)" -eq 0 ]; then
+    GIT_USER=$(stat -c '%U' ../.git 2>/dev/null || echo root)
+fi
+if [ -n "$GIT_USER" ] && [ "$GIT_USER" != "root" ]; then
+    git_cmd() { sudo -u "$GIT_USER" git "$@"; }
 else
     git_cmd() { git "$@"; }
 fi

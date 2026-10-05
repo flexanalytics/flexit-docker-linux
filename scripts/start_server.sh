@@ -12,6 +12,8 @@ if [ -f ../.env ]; then
     set +a
 fi
 
+./check_env.sh
+
 cd ..
 
 # Set memory limit to available RAM minus 1G buffer (Linux only; on Mac, Docker Desktop manages this)

@@ -15,4 +15,4 @@ services:
       - "443:443"
     volumes:
       - /var/run/docker.sock:/tmp/docker.sock:ro
-      - ${CERT_PATH}:/etc/nginx/certs
+      - ${CERT_PATH}:/etc/lego

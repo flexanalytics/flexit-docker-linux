@@ -2,6 +2,8 @@
 
 set -e
 
+cd "$(dirname "$0")"
+
 echo "Welcome to the FlexIt installation setup. This will install the needed tools and allow you to configure the application."
 sleep 1.5
 
@@ -27,31 +29,23 @@ else
     sudo systemctl enable --now docker
 fi
 
-# Prompt for database details
-echo "Please configure the backend database. Keep these credentials secure, you will only be asked once."
-read -p "Enter database username: " DB_USER
-read -s -p "Enter database password: " DB_PASSWORD
-echo
-read -p "Enter database name: " DB_NAME
-
-# Export environment variables
-echo "Exporting environment variables..."
-export POSTGRES_USER="$DB_USER"
-export POSTGRES_PASSWORD="$DB_PASSWORD"
-export POSTGRES_DB="$DB_NAME"
-export DATABASE_URL="postgresql://$DB_USER:$DB_PASSWORD@flexit-content-database:5432/$DB_NAME"
-
-echo "Installing FlexIt..."
-docker compose up -d --build
-
-# Retrieve FLEXIT_PORT from .env file
-if [ -f .env ]; then
-    FLEXIT_PORT=$(grep '^FLEXIT_PORT=' .env | cut -d '=' -f2)
-    echo "Configure the application by navigating to http://localhost:$FLEXIT_PORT"
-else
-    echo "No .env file found. Please configure your application manually."
+if [ ! -f .env ]; then
+    cp .env.template .env
+    chmod 600 .env
+    [ -n "$SUDO_USER" ] && chown "$SUDO_USER" .env
+    echo
+    echo "Created .env from .env.template. Fill it in before continuing:"
+    echo "  - DB_USER / DB_PASSWORD / DB_NAME"
+    echo "  - FLEXIT_ENCRYPTION_KEY (generate with: openssl rand -hex 16)"
+    echo "  - nginx / cert settings if serving over HTTPS"
+    echo "Then rerun: sudo ./install.sh"
+    exit 1
 fi
 
+echo "Installing FlexIt..."
+./scripts/start_server.sh
+
+FLEXIT_PORT=$(grep '^FLEXIT_PORT=' .env | cut -d '=' -f2)
+echo "Configure the application by navigating to http://localhost:$FLEXIT_PORT"
+
 echo "Process completed successfully."
-
-

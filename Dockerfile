@@ -2,8 +2,7 @@ FROM ubuntu:jammy AS base
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Set environment variables for FlexIt, Sling, dbt, and dlt versions
-ENV FLEXIT_VERSION=latest
+# Set environment variables for dbt and dlt versions
 ENV DBT_VERSION=1.11.0
 ENV DLT_VERSION=1.20.0
 
@@ -96,6 +95,7 @@ RUN \
 FROM base AS final
 
 ARG CACHEBUST=1
+ARG FLEXIT_VERSION=latest
 RUN echo "$CACHEBUST"
 
 # Attempt to copy the FlexIt installer if found locally

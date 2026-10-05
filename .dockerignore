@@ -4,3 +4,5 @@
 .dockerignore
 *.bak
 README.md
+.env
+venv
