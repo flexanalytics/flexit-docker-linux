@@ -19,14 +19,18 @@ KEY_PATH="${CERT_PATH}/certificates/${PUBLIC_DNS}.key"
 CRT_PATH="${CERT_PATH}/certificates/${PUBLIC_DNS}.crt"
 
 # Renew if cert expires in < 30 days
-if openssl x509 -checkend $(( 30 * 86400 )) -noout -in "$CRT_PATH"; then
+if [ -f "$CRT_PATH" ] && openssl x509 -checkend $(( 30 * 86400 )) -noout -in "$CRT_PATH"; then
   echo "[$(date)] Certificate is still valid. No renewal needed."
 else
   echo "[$(date)] Renewing self-signed certificate..."
+  mkdir -p "${CERT_PATH}/certificates"
   openssl req -x509 -nodes -days 365 \
     -newkey rsa:2048 \
     -keyout "$KEY_PATH" \
     -out "$CRT_PATH" \
     -config "$SCRIPT_DIR/openssl.conf" \
     -extensions v3_req
+  # Relative targets so the links still resolve inside the nginx container mount
+  ln -sf "${PUBLIC_DNS}.crt" "${CERT_PATH}/certificates/default.crt"
+  ln -sf "${PUBLIC_DNS}.key" "${CERT_PATH}/certificates/default.key"
 fi
