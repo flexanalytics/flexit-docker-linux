@@ -19,7 +19,9 @@ healthy() {
 shutdown() {
     echo "Stopping FlexIt..."
     sudo ./flexit kill
-    sudo su postgres -c "$PWD/../pgsql/bin/pg_ctl stop -D $PWD/../pgsql/data -m fast" || true
+    if id postgres >/dev/null 2>&1; then
+        sudo su postgres -c "$PWD/../pgsql/bin/pg_ctl stop -D $PWD/../pgsql/data -m fast" || true
+    fi
     exit 0
 }
 trap shutdown TERM INT
