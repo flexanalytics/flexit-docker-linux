@@ -314,6 +314,27 @@ To restart the application:
 sudo ./scripts/restart_server.sh
 ```
 
+### Health and Automatic Restart
+The container's entrypoint watches FlexIt on port 3030. Once FlexIt has answered, or after a startup grace period, consecutive failed checks are counted, and the container exits after too many so Docker's restart policy brings it back. `docker stop` shuts FlexIt down cleanly.
+
+Check status and restart count:
+
+```bash
+sudo docker inspect -f '{{.State.Health.Status}} restarts={{.RestartCount}}' flexit-analytics
+```
+
+The watchdog can be tuned in `.env`:
+
+```dotenv
+## -- [optional] health watchdog -- ##
+# Seconds between checks.
+HEALTH_INTERVAL=30
+# Consecutive failures before the container restarts.
+HEALTH_MAX_FAILURES=5
+# Seconds before failures count if FlexIt never came up.
+HEALTH_START_GRACE=600
+```
+
 ---
 
 ## Troubleshooting
@@ -325,6 +346,10 @@ sudo ./scripts/restart_server.sh
 - Review logs:
   ```bash
   docker logs flexit-analytics
+  ```
+- Look for watchdog restarts. `FlexIt health check failed (n/5)` lines followed by `FlexIt unresponsive` mean FlexIt stopped answering and the container restarted itself:
+  ```bash
+  docker logs flexit-analytics 2>&1 | grep -E "health check failed|unresponsive"
   ```
 
 ### 2. Auto-Deploy Not Firing
@@ -355,3 +380,15 @@ sudo ./scripts/restart_server.sh
   ```bash
   sudo -u <repo-owner> git ls-remote origin refs/heads/deploy
   ```
+
+### 5. Saved Credentials Show Garbage or Stop Working
+Symptoms: a stored token or password displays as random characters, connections fail with authentication errors, or requests fail with `Invalid character in header content ["Authorization"]`.
+
+The secret was encrypted under a different `FLEXIT_ENCRYPTION_KEY` than the one the container has now. Confirm the container has the key from `.env`:
+
+```bash
+sudo docker exec flexit-analytics printenv FLEXIT_ENCRYPTION_KEY | tr -d '\n' | sha256sum
+grep '^FLEXIT_ENCRYPTION_KEY=' .env | cut -d= -f2- | tr -d '\n' | sha256sum
+```
+
+If the hashes match, the affected secrets were saved under another key, for example copied in from another instance. Re-enter them and save. If you have the original key, restoring it in `.env` recovers every secret saved under it.
