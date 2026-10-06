@@ -7,7 +7,9 @@ cd "$(dirname "$0")"
 
 # Load environment variables from .env file one directory up if it exists
 if [ -f ../.env ]; then
-    export $(grep -v '^#' ../.env | xargs)
+    set -a
+    source ../.env
+    set +a
 fi
 
 cd ..

@@ -19,29 +19,33 @@ git clone https://github.com/flexanalytics/flexit-docker-linux.git
 
 ### 2. Configure Environment Variables
 
-The repo's `.env` file defines project-level variables. Should you need to update ports or install versions, you can edit them there. Otherwise keep the defaults.
+Configuration lives in `.env`, which is not tracked by git. Create it from the template and fill it in deliberately before the first deploy:
 
-```dotenv
-## -- frontend app setup -- ##
-FLEXIT_PORT=3030
-FLEXIT_VERSION=latest
-
-## -- backend db setup -- ##
-CONTENT_DB_VERSION=latest
-DB_PORT=5432
-
-## -- Optional nginx setup -- ##
-USE_NGINX=false
-CERT_PATH=/etc/nginx/certs
-PUBLIC_DNS=myserver.mydomain.com
-NGINX_HTTPS_PORT=443
-NGINX_HTTP_PORT=80
+```bash
+cp .env.template .env
+chmod 600 .env
 ```
 
-See the [Configure SSL](#configure-ssl) section below for details on how to enable HTTPS/SSL. The above configuration uses the [Nginx with your certs](#2-use-the-provided-nginx-reverse-proxy-with-your-own-certificate) configuration, which would require you to set `USE_NGINX=true` and then the following:
-1. The `/etc/nginx/certs` folder
-2. The `myserver.mydomain.com.crt` certificate file under that folder
-3. The `myserver.mydomain.com.key` private key file under that folder
+At minimum, set:
+
+- `DB_USER`, `DB_PASSWORD`, `DB_NAME` — credentials for the content database. The template password is rejected.
+- `FLEXIT_ENCRYPTION_KEY` — a 32-character key that encrypts stored datasource and integration secrets. Generate one with `openssl rand -hex 16`. Keep it somewhere safe and never change it: losing it makes saved secrets unrecoverable.
+- `FLEXIT_VERSION` — the FlexIt release to install, or `latest`.
+- `DBT_ADAPTERS` — the dbt adapters this install needs, comma-separated with no spaces. Supported: `snowflake`, `redshift`, `postgres`, `oracle`. Installs that leave it unset get `snowflake,redshift`.
+- `DLT_DEFAULT_DESTINATION` — the dlt destination: `snowflake`, `redshift`, `postgres`, or `sqlalchemy`. dlt has no native Oracle destination; Oracle installs use `sqlalchemy`.
+
+Both are baked into the image at build time, so changing either one takes effect on the next restart, which rebuilds. Every supported combination installs the same package versions from `constraints.txt`. To change a version or add an adapter, edit `requirements.in` and regenerate the constraints with the command at the top of `constraints.txt`.
+
+If you're serving over HTTPS through the bundled nginx, also set `USE_NGINX`, `PUBLIC_DNS` and `CERT_PATH` (see [Configure SSL](#configure-ssl)), plus `CERT_EMAIL` and `AUTO_MANAGE_CERTS` for Let's Encrypt.
+
+Every install and restart runs `scripts/check_env.sh` first, and refuses to continue while required values are missing or still set to template placeholders. Run it yourself any time to check a `.env`:
+
+```bash
+./scripts/check_env.sh
+```
+
+> [!NOTE]
+> When `.env.template` gains new keys in a later release, copy them into your `.env` by hand. The template is never applied automatically.
 
 ### 3. Install The Software
 
@@ -50,7 +54,7 @@ To install the software, run the below script:
 sudo ./install.sh
 ```
 
-This will install the needed software and allow you to configure the backend credentials.
+This installs Docker if needed and starts FlexIt using the values in `.env`. If `.env` doesn't exist yet, the script creates it from the template and exits so you can fill it in. Rerun it afterwards.
 
 The application will automatically start after this script is complete.
 You may need to reboot the server if docker was not previously installed.
@@ -112,7 +116,7 @@ docker compose up -d
 ```dotenv
 USE_NGINX=true
 ```
-2. Provide a certificate and key file. These files should be placed in the `$CERT_PATH` folder that's configured in the `.env` file. If you're not sure where to put the certs folder, you can put them in `/etc/nginx/certs`, which may need to be created with the `sudo mkdir -p /etc/nginx/certs/` command.
+2. Provide a certificate and key file. These files should be placed in the `certificates` subfolder of the `$CERT_PATH` configured in the `.env` file. For example, with `CERT_PATH=/opt/nginx/certs`, create the folder with `sudo mkdir -p /opt/nginx/certs/certificates` and put the files there.
 
 > [!NOTE]
 > The certificate and key files will need to have the naming convention of `PUBLIC_DNS.crt` and `PUBLIC_DNS.key` i.e. `flexit.myserver.com.crt`.
@@ -154,6 +158,8 @@ CERT_EMAIL=your_email_address
 ```dotenv
 AUTO_MANAGE_CERTS=true
 ```
+
+Issued certificates are stored under `$CERT_PATH/certificates`, the same folder nginx reads from.
 
 5. Restart the application. The `restart_server` script will detect the USE_NGINX and AUTO_MANAGE_CERTS flags and start a new container running nginx and the companion container.
 
@@ -308,6 +314,27 @@ To restart the application:
 sudo ./scripts/restart_server.sh
 ```
 
+### Health and Automatic Restart
+The container's entrypoint watches FlexIt on port 3030. Once FlexIt has answered, or after a startup grace period, consecutive failed checks are counted, and the container exits after too many so Docker's restart policy brings it back. `docker stop` shuts FlexIt down cleanly.
+
+Check status and restart count:
+
+```bash
+sudo docker inspect -f '{{.State.Health.Status}} restarts={{.RestartCount}}' flexit-analytics
+```
+
+The watchdog can be tuned in `.env`:
+
+```dotenv
+## -- [optional] health watchdog -- ##
+# Seconds between checks.
+HEALTH_INTERVAL=30
+# Consecutive failures before the container restarts.
+HEALTH_MAX_FAILURES=5
+# Seconds before failures count if FlexIt never came up.
+HEALTH_START_GRACE=600
+```
+
 ---
 
 ## Troubleshooting
@@ -319,6 +346,10 @@ sudo ./scripts/restart_server.sh
 - Review logs:
   ```bash
   docker logs flexit-analytics
+  ```
+- Look for watchdog restarts. `FlexIt health check failed (n/5)` lines followed by `FlexIt unresponsive` mean FlexIt stopped answering and the container restarted itself:
+  ```bash
+  docker logs flexit-analytics 2>&1 | grep -E "health check failed|unresponsive"
   ```
 
 ### 2. Auto-Deploy Not Firing
@@ -349,3 +380,15 @@ sudo ./scripts/restart_server.sh
   ```bash
   sudo -u <repo-owner> git ls-remote origin refs/heads/deploy
   ```
+
+### 5. Saved Credentials Show Garbage or Stop Working
+Symptoms: a stored token or password displays as random characters, connections fail with authentication errors, or requests fail with `Invalid character in header content ["Authorization"]`.
+
+The secret was encrypted under a different `FLEXIT_ENCRYPTION_KEY` than the one the container has now. Confirm the container has the key from `.env`:
+
+```bash
+sudo docker exec flexit-analytics printenv FLEXIT_ENCRYPTION_KEY | tr -d '\n' | sha256sum
+grep '^FLEXIT_ENCRYPTION_KEY=' .env | cut -d= -f2- | tr -d '\n' | sha256sum
+```
+
+If the hashes match, the affected secrets were saved under another key, for example copied in from another instance. Re-enter them and save. If you have the original key, restoring it in `.env` recovers every secret saved under it.

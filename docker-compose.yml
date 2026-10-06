@@ -8,16 +8,21 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        FLEXIT_VERSION: ${FLEXIT_VERSION}
+        DBT_ADAPTERS: ${DBT_ADAPTERS:-snowflake,redshift}
+        DLT_DEFAULT_DESTINATION: ${DLT_DEFAULT_DESTINATION:-snowflake}
     image: ghcr.io/flexanalytics/flexit:${FLEXIT_VERSION}
     pull_policy: missing
     env_file: .env
     restart: unless-stopped
+    stop_grace_period: 60s
     depends_on:
       flexit-content-database:
         condition: service_healthy
     environment:
       DATABASE_URL: postgres://${DB_USER}:${DB_PASSWORD}@flexit-content-database:5432/${DB_NAME}
-      NODE_ENV: development
+      NODE_ENV: production
       PORT: ${FLEXIT_PORT}
       VIRTUAL_HOST: ${PUBLIC_DNS}
       VIRTUAL_PORT: 3030
@@ -46,7 +51,7 @@ services:
     networks:
       - flexit-network
     ports:
-      - "${DB_PORT}:5432"
+      - "127.0.0.1:${DB_PORT}:5432"
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
