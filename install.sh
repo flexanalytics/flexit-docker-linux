@@ -4,6 +4,28 @@ set -e
 
 cd "$(dirname "$0")"
 
+OVERRIDE_KEYS="FLEXIT_VERSION FLEXIT_PORT DBT_ADAPTERS DLT_DEFAULT_DESTINATION DLT_VERIFIED_SOURCES DB_USER DB_PASSWORD DB_NAME FLEXIT_ENCRYPTION_KEY USE_NGINX PUBLIC_DNS AUTO_MANAGE_CERTS CERT_EMAIL USE_SELF_SIGNED_CERT CERT_PATH"
+
+usage() {
+    echo "Usage: sudo [KEY=value ...] ./install.sh [--defaults]"
+    echo
+    echo "  --defaults  When creating a new .env, accept every template value, generate"
+    echo "              DB_PASSWORD and FLEXIT_ENCRYPTION_KEY, and install without prompts."
+    echo
+    echo "KEY=value pairs set values in a new .env, either as the defaults offered by the"
+    echo "prompts or as the final values with --defaults. They are ignored when .env exists."
+    echo "Supported keys: $OVERRIDE_KEYS"
+}
+
+DEFAULTS=false
+for arg in "$@"; do
+    case "$arg" in
+        --defaults) DEFAULTS=true ;;
+        -h|--help) usage; exit 0 ;;
+        *) usage >&2; exit 1 ;;
+    esac
+done
+
 echo "Welcome to the FlexIt installation setup. This will install the needed tools and allow you to configure the application."
 sleep 1.5
 
@@ -140,13 +162,44 @@ configure_env() {
     fi
 }
 
-if [ "$ENV_CREATED" = true ] && [ -t 0 ]; then
-    configure_env
+apply_overrides() {
+    local key
+    for key in $OVERRIDE_KEYS; do
+        if [ -n "${!key}" ]; then
+            if [[ "${!key}" == *\'* ]]; then
+                echo "ERROR: $key cannot contain a single quote." >&2
+                exit 1
+            fi
+            set_env_value "$key" "${!key}"
+            echo "Using $key from the environment."
+        fi
+    done
+}
+
+if [ "$ENV_CREATED" = true ]; then
+    apply_overrides
+    if [ "$DEFAULTS" = false ] && [ -t 0 ]; then
+        configure_env
+    fi
+else
+    for key in $OVERRIDE_KEYS; do
+        if [ -n "${!key}" ]; then
+            echo "Note: .env already exists, so environment values like $key were ignored."
+            break
+        fi
+    done
 fi
 
 offer_secret() {
     local key=$1
     shift
+    if [ "$DEFAULTS" = true ]; then
+        if [ "$ENV_CREATED" = true ]; then
+            set_env_value "$key" "$(openssl rand -hex 16)"
+            echo "Generated $key and saved it to .env."
+        fi
+        return 0
+    fi
     [ -t 0 ] || return 0
     echo
     printf '%s\n' "$@"
@@ -175,12 +228,13 @@ if [ -z "$(env_value FLEXIT_ENCRYPTION_KEY)" ]; then
     fi
 fi
 
-if [ "$ENV_CREATED" = true ] && [ ! -t 0 ]; then
+if [ "$ENV_CREATED" = true ] && [ "$DEFAULTS" = false ] && [ ! -t 0 ]; then
     echo
     echo "Review the rest of .env before continuing:"
     echo "  - FLEXIT_VERSION, DBT_ADAPTERS, DLT_DEFAULT_DESTINATION"
     echo "  - nginx / cert settings if serving over HTTPS"
     echo "Then rerun: sudo ./install.sh"
+    echo "To accept the defaults instead, delete .env and run: sudo ./install.sh --defaults"
     exit 1
 fi
 

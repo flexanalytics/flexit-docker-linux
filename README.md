@@ -59,6 +59,14 @@ This installs Docker if needed and starts FlexIt using the values in `.env`. If 
 
 When `DB_PASSWORD` is still the template default or `FLEXIT_ENCRYPTION_KEY` is empty, the script offers to generate a random value for each. It never replaces a key that is already set. If you generate a new encryption key, back it up right away.
 
+To skip the prompts, for example on a throwaway test server or from cloud-init, pass `--defaults`. On a new `.env` it accepts every template value, generates both secrets and installs. Set individual values by passing them through `sudo`:
+
+```bash
+sudo DBT_ADAPTERS=snowflake,postgres DLT_DEFAULT_DESTINATION=postgres ./install.sh --defaults
+```
+
+The same `KEY=value` pairs work without `--defaults`, where they become the defaults the prompts offer. They only apply when the script creates `.env`, and are ignored if one already exists. Run `./install.sh --help` for the supported keys.
+
 The application will automatically start after this script is complete.
 You may need to reboot the server if docker was not previously installed.
 
