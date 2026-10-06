@@ -61,6 +61,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         numpy \
         openpyxl \
         oracledb \
+        psycopg2-binary \
         pymysql \
         pyodbc \
         pyarrow \

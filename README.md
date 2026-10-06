@@ -32,9 +32,10 @@ At minimum, set:
 - `FLEXIT_ENCRYPTION_KEY` — a 32-character key that encrypts stored datasource and integration secrets. Generate one with `openssl rand -hex 16`. Keep it somewhere safe and never change it: losing it makes saved secrets unrecoverable.
 - `FLEXIT_VERSION` — the FlexIt release to install, or `latest`.
 - `DBT_ADAPTERS` — the dbt adapters this install needs, comma-separated with no spaces. Supported: `snowflake`, `redshift`, `postgres`, `oracle`. Installs that leave it unset get `snowflake,redshift`.
-- `DLT_DEFAULT_DESTINATION` — the dlt destination: `snowflake`, `redshift`, `postgres`, or `sqlalchemy`. dlt has no native Oracle destination; Oracle installs use `sqlalchemy`.
+- `DLT_DEFAULT_DESTINATION` — the dlt destination: `snowflake`, `redshift`, `postgres`, or `sqlalchemy`. dlt has no native Oracle destination; Oracle installs use `sqlalchemy`. This is only where dlt loads data to: SQL database sources (Oracle, Postgres, MySQL, SQL Server, Snowflake) are always available, whatever destination you pick.
+- `DLT_VERIFIED_SOURCES` — dlt verified API sources to pre-install, space-separated, e.g. `filesystem salesforce hubspot`. Defaults to `filesystem`.
 
-Both are baked into the image at build time, so changing either one takes effect on the next restart, which rebuilds. Every supported combination installs the same package versions from `constraints.txt`. To change a version or add an adapter, edit `requirements.in` and regenerate the constraints with the command at the top of `constraints.txt`.
+These dbt and dlt settings are baked into the image at build time, so changing any of them takes effect on the next restart, which rebuilds. Every supported combination installs the same package versions from `constraints.txt`. To change a version or add an adapter, edit `requirements.in` and regenerate the constraints with the command at the top of `constraints.txt`.
 
 If you're serving over HTTPS through the bundled nginx, also set `USE_NGINX`, `PUBLIC_DNS` and `CERT_PATH` (see [Configure SSL](#configure-ssl)), plus `CERT_EMAIL` and `AUTO_MANAGE_CERTS` for Let's Encrypt.
 
@@ -54,7 +55,9 @@ To install the software, run the below script:
 sudo ./install.sh
 ```
 
-This installs Docker if needed and starts FlexIt using the values in `.env`. If `.env` doesn't exist yet, the script creates it from the template and exits so you can fill it in. Rerun it afterwards.
+This installs Docker if needed and starts FlexIt using the values in `.env`. If `.env` doesn't exist yet, the script creates it from the template and walks you through each setting (press Enter to keep the default), then continues with the install. When run without a terminal, it creates `.env` and exits so you can fill it in, then you rerun it.
+
+When `DB_PASSWORD` is still the template default or `FLEXIT_ENCRYPTION_KEY` is empty, the script offers to generate a random value for each. It never replaces a key that is already set. If you generate a new encryption key, back it up right away.
 
 The application will automatically start after this script is complete.
 You may need to reboot the server if docker was not previously installed.

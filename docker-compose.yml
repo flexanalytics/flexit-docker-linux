@@ -12,6 +12,7 @@ services:
         FLEXIT_VERSION: ${FLEXIT_VERSION}
         DBT_ADAPTERS: ${DBT_ADAPTERS:-snowflake,redshift}
         DLT_DEFAULT_DESTINATION: ${DLT_DEFAULT_DESTINATION:-snowflake}
+        DLT_VERIFIED_SOURCES: ${DLT_VERIFIED_SOURCES:-filesystem}
     image: ghcr.io/flexanalytics/flexit:${FLEXIT_VERSION}
     pull_policy: missing
     env_file: .env
