@@ -1,6 +1,6 @@
 services:
   flexit-webserver-proxy:
-    image: goacme/lego:latest
+    image: goacme/lego:v4.35.2
     container_name: flexit-webserver-proxy
     entrypoint: /bin/sh
     command: >
