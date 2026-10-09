@@ -1,7 +1,7 @@
 services:
   flexit-webserver:
     container_name: flexit-webserver
-    image: jwilder/nginx-proxy
+    image: jwilder/nginx-proxy:1.11.6
     restart: unless-stopped
     networks:
       - flexit-network
