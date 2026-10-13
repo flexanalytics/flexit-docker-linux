@@ -31,6 +31,7 @@ At minimum, set:
 - `DB_USER`, `DB_PASSWORD`, `DB_NAME` — credentials for the content database. The template password is rejected.
 - `FLEXIT_ENCRYPTION_KEY` — a 32-character key that encrypts stored datasource and integration secrets. Generate one with `openssl rand -hex 16`. Keep it somewhere safe and never change it: losing it makes saved secrets unrecoverable.
 - `FLEXIT_VERSION` — the FlexIt release to install, or `latest`.
+- `FLEXIT_DEPLOY_TOKEN` — the token Flex Analytics provides for downloading FlexIt releases. It is passed to the build as a Docker build secret, so it never ends up in the image. If it is missing or invalid, the build fails and FlexIt keeps running the previous version.
 - `DBT_ADAPTERS` — the dbt adapters this install needs, comma-separated with no spaces. Supported: `snowflake`, `redshift`, `postgres`, `oracle`. Installs that leave it unset get `snowflake,redshift`.
 - `DLT_DEFAULT_DESTINATION` — the dlt destination: `snowflake`, `redshift`, `postgres`, or `sqlalchemy`. dlt has no native Oracle destination; Oracle installs use `sqlalchemy`. This is only where dlt loads data to: SQL database sources (Oracle, Postgres, MySQL, SQL Server, Snowflake) are always available, whatever destination you pick.
 - `DLT_VERIFIED_SOURCES` — dlt verified API sources to pre-install, space-separated, e.g. `filesystem salesforce hubspot`. Defaults to `filesystem`.

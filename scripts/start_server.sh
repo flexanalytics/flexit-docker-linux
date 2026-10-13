@@ -38,13 +38,19 @@ fi
 
 # Build images
 echo "Building local images"
-if ! sudo docker compose $COMPOSE_FILES build --build-arg CACHEBUST=$(date +%s); then
-    echo "Build failed, continuing with existing images"
+export FLEXIT_DEPLOY_TOKEN="${FLEXIT_DEPLOY_TOKEN:-}"
+if ! sudo --preserve-env=FLEXIT_DEPLOY_TOKEN docker compose $COMPOSE_FILES build --build-arg CACHEBUST=$(date +%s); then
+    echo "ERROR: build failed, FlexIt was NOT updated and is starting on the previous image." >&2
+    if [ -z "$FLEXIT_DEPLOY_TOKEN" ]; then
+        echo "ERROR: FLEXIT_DEPLOY_TOKEN is empty in .env; it is required to download private FlexIt releases." >&2
+    else
+        echo "ERROR: check that FLEXIT_DEPLOY_TOKEN in .env is valid and not expired, and that FLEXIT_VERSION exists." >&2
+    fi
 fi
 
 # Start services
 echo "Starting services with: sudo docker compose $COMPOSE_FILES up -d $PULL_FLAG"
-sudo docker compose $COMPOSE_FILES up -d $PULL_FLAG
+sudo --preserve-env=FLEXIT_DEPLOY_TOKEN docker compose $COMPOSE_FILES up -d $PULL_FLAG
 
 echo "Pruning unused docker artifacts"
 sudo docker system prune -f

@@ -4,7 +4,7 @@ set -e
 
 cd "$(dirname "$0")"
 
-OVERRIDE_KEYS="FLEXIT_VERSION FLEXIT_PORT DBT_ADAPTERS DLT_DEFAULT_DESTINATION DLT_VERIFIED_SOURCES DB_USER DB_PASSWORD DB_NAME FLEXIT_ENCRYPTION_KEY USE_NGINX PUBLIC_DNS AUTO_MANAGE_CERTS CERT_EMAIL USE_SELF_SIGNED_CERT CERT_PATH"
+OVERRIDE_KEYS="FLEXIT_VERSION FLEXIT_DEPLOY_TOKEN FLEXIT_PORT DBT_ADAPTERS DLT_DEFAULT_DESTINATION DLT_VERIFIED_SOURCES DB_USER DB_PASSWORD DB_NAME FLEXIT_ENCRYPTION_KEY USE_NGINX PUBLIC_DNS AUTO_MANAGE_CERTS CERT_EMAIL USE_SELF_SIGNED_CERT CERT_PATH"
 
 usage() {
     echo "Usage: sudo [KEY=value ...] ./install.sh [--defaults]"
@@ -225,6 +225,19 @@ if [ -z "$(env_value FLEXIT_ENCRYPTION_KEY)" ]; then
     if [ -n "$(env_value FLEXIT_ENCRYPTION_KEY)" ]; then
         echo
         echo "IMPORTANT: back up FLEXIT_ENCRYPTION_KEY from .env now, e.g. in your password manager."
+    fi
+fi
+
+if [ -z "$(env_value FLEXIT_DEPLOY_TOKEN)" ] && [ "$DEFAULTS" = false ] && [ -t 0 ]; then
+    echo
+    echo "FLEXIT_DEPLOY_TOKEN lets this server download FlexIt releases. Flex Analytics provides it."
+    read -r -s -p "FLEXIT_DEPLOY_TOKEN (input hidden, Enter to skip): " reply
+    echo
+    if [ -n "$reply" ]; then
+        set_env_value FLEXIT_DEPLOY_TOKEN "$reply"
+        echo "Saved FLEXIT_DEPLOY_TOKEN to .env."
+    else
+        echo "Skipped. Set FLEXIT_DEPLOY_TOKEN in .env before deploying, or the FlexIt download will fail."
     fi
 fi
 

@@ -13,6 +13,8 @@ services:
         DBT_ADAPTERS: ${DBT_ADAPTERS:-snowflake,redshift}
         DLT_DEFAULT_DESTINATION: ${DLT_DEFAULT_DESTINATION:-snowflake}
         DLT_VERIFIED_SOURCES: ${DLT_VERIFIED_SOURCES:-filesystem}
+      secrets:
+        - flexit_deploy_token
     image: ghcr.io/flexanalytics/flexit:${FLEXIT_VERSION}
     pull_policy: missing
     env_file: .env
@@ -83,3 +85,7 @@ networks:
   flexit-network:
     name: flexit-network
     driver: bridge
+
+secrets:
+  flexit_deploy_token:
+    environment: FLEXIT_DEPLOY_TOKEN

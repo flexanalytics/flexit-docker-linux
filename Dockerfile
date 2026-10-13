@@ -98,17 +98,30 @@ RUN echo "$CACHEBUST"
 COPY flexit-linux-x64-installer.ru[n] /tmp/flexit-linux-x64-installer.run
 
 # Check if the FlexIt installer exists locally; if not, download it
-RUN \
+RUN --mount=type=secret,id=flexit_deploy_token \
+    set -e; \
     if [ ! -f /tmp/flexit-linux-x64-installer.run ]; then \
-        if [ "$FLEXIT_VERSION" = "latest" ]; then \
+        token=$(cat /run/secrets/flexit_deploy_token 2>/dev/null || true); \
+        if [ -n "$token" ]; then \
+            if [ "$FLEXIT_VERSION" = "latest" ]; then release=latest; else release="tags/${FLEXIT_VERSION}"; fi; \
+            asset_url=$(curl -fsSL \
+                -H "Authorization: Bearer $token" \
+                -H "Accept: application/vnd.github+json" \
+                "https://api.github.com/repos/flexanalytics/flexit-deploy/releases/$release" \
+                | python3 -c 'import json, sys; print(next(a["url"] for a in json.load(sys.stdin)["assets"] if a["name"] == "flexit-linux-x64-installer.run"))'); \
+            curl -fsSL -o flexit.run \
+                -H "Authorization: Bearer $token" \
+                -H "Accept: application/octet-stream" \
+                "$asset_url"; \
+        elif [ "$FLEXIT_VERSION" = "latest" ]; then \
             curl -fsSL -o flexit.run https://github.com/flexanalytics/flexit-deploy/releases/latest/download/flexit-linux-x64-installer.run; \
         else \
             curl -fsSL -o flexit.run https://github.com/flexanalytics/flexit-deploy/releases/download/${FLEXIT_VERSION}/flexit-linux-x64-installer.run; \
         fi; \
     else \
         mv /tmp/flexit-linux-x64-installer.run ./flexit.run; \
-    fi \
-    && chmod +x ./flexit.run \
+    fi; \
+    chmod +x ./flexit.run \
     && ./flexit.run --mode unattended --unattendedmodeui none \
     && rm ./flexit.run
 
