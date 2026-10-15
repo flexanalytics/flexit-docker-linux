@@ -241,6 +241,13 @@ if [ -z "$(env_value FLEXIT_DEPLOY_TOKEN)" ] && [ "$DEFAULTS" = false ] && [ -t 
     fi
 fi
 
+if [ -z "$(env_value FLEXIT_DEPLOY_TOKEN)" ] && [ ! -f flexit-linux-x64-installer.run ]; then
+    echo
+    echo "WARNING: FLEXIT_DEPLOY_TOKEN is not set and no local flexit-linux-x64-installer.run was found." >&2
+    echo "WARNING: the FlexIt download will fail. On a new install there is no previous version to fall back to." >&2
+    echo "WARNING: add FLEXIT_DEPLOY_TOKEN to .env, or pass it when .env is first created: sudo FLEXIT_DEPLOY_TOKEN=<token> ./install.sh" >&2
+fi
+
 if [ "$ENV_CREATED" = true ] && [ "$DEFAULTS" = false ] && [ ! -t 0 ]; then
     echo
     echo "Review the rest of .env before continuing:"

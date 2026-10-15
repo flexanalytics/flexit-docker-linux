@@ -31,7 +31,7 @@ At minimum, set:
 - `DB_USER`, `DB_PASSWORD`, `DB_NAME` — credentials for the content database. The template password is rejected.
 - `FLEXIT_ENCRYPTION_KEY` — a 32-character key that encrypts stored datasource and integration secrets. Generate one with `openssl rand -hex 16`. Keep it somewhere safe and never change it: losing it makes saved secrets unrecoverable.
 - `FLEXIT_VERSION` — the FlexIt release to install, or `latest`.
-- `FLEXIT_DEPLOY_TOKEN` — the token Flex Analytics provides for downloading FlexIt releases. It is passed to the build as a Docker build secret, so it never ends up in the image. If it is missing or invalid, the build fails and FlexIt keeps running the previous version.
+- `FLEXIT_DEPLOY_TOKEN` — the token Flex Analytics provides for downloading FlexIt releases. It is passed to the build as a Docker build secret, so it never ends up in the image. If it is missing or invalid, the build fails: an existing server keeps running its previous FlexIt version, and a new install fails because there is no previous version to fall back to. Not needed when `flexit-linux-x64-installer.run` is placed in the repo root.
 - `DBT_ADAPTERS` — the dbt adapters this install needs, comma-separated with no spaces. Supported: `snowflake`, `redshift`, `postgres`, `oracle`. Installs that leave it unset get `snowflake,redshift`.
 - `DLT_DEFAULT_DESTINATION` — the dlt destination: `snowflake`, `redshift`, `postgres`, or `sqlalchemy`. dlt has no native Oracle destination; Oracle installs use `sqlalchemy`. This is only where dlt loads data to: SQL database sources (Oracle, Postgres, MySQL, SQL Server, Snowflake) are always available, whatever destination you pick.
 - `DLT_VERIFIED_SOURCES` — dlt verified API sources to pre-install, space-separated, e.g. `filesystem salesforce hubspot`. Defaults to `filesystem`.
@@ -60,10 +60,12 @@ This installs Docker if needed and starts FlexIt using the values in `.env`. If 
 
 When `DB_PASSWORD` is still the template default or `FLEXIT_ENCRYPTION_KEY` is empty, the script offers to generate a random value for each. It never replaces a key that is already set. If you generate a new encryption key, back it up right away.
 
-To skip the prompts, for example on a throwaway test server or from cloud-init, pass `--defaults`. On a new `.env` it accepts every template value, generates both secrets and installs. Set individual values by passing them through `sudo`:
+When `FLEXIT_DEPLOY_TOKEN` is empty, the script asks for it with hidden input. Press Enter to skip, but the FlexIt download will fail until it is set in `.env`.
+
+To skip the prompts, for example on a throwaway test server or from cloud-init, pass `--defaults`. On a new `.env` it accepts every template value, generates both secrets and installs. It can't generate `FLEXIT_DEPLOY_TOKEN`, so pass it in. Set individual values by passing them through `sudo`:
 
 ```bash
-sudo DBT_ADAPTERS=snowflake,postgres DLT_DEFAULT_DESTINATION=postgres ./install.sh --defaults
+sudo FLEXIT_DEPLOY_TOKEN=<token> DBT_ADAPTERS=snowflake,postgres DLT_DEFAULT_DESTINATION=postgres ./install.sh --defaults
 ```
 
 The same `KEY=value` pairs work without `--defaults`, where they become the defaults the prompts offer. They only apply when the script creates `.env`, and are ignored if one already exists. Run `./install.sh --help` for the supported keys.
