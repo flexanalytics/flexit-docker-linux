@@ -16,13 +16,6 @@ fi
 
 cd ..
 
-# Set memory limit to available RAM minus 1G buffer (Linux only; on Mac, Docker Desktop manages this)
-if [[ "$(uname)" == "Linux" ]]; then
-    available_mb=$(free -m | awk '/^Mem:/{print $7}')
-    export MEMORY_LIMIT=$(( available_mb - 1024 ))m
-    echo "Setting container memory limit to $MEMORY_LIMIT"
-fi
-
 # Determine which docker-compose files to use
 COMPOSE_FILES="-f docker-compose.yml"
 
@@ -48,9 +41,25 @@ if ! sudo --preserve-env=FLEXIT_DEPLOY_TOKEN docker compose $COMPOSE_FILES build
     fi
 fi
 
-# Start services
-echo "Starting services with: sudo docker compose $COMPOSE_FILES up -d $PULL_FLAG"
-sudo --preserve-env=FLEXIT_DEPLOY_TOKEN docker compose $COMPOSE_FILES up -d $PULL_FLAG
+# Set memory limit to available RAM minus 1G buffer (Linux only; on Mac, Docker Desktop manages this)
+if [[ "$(uname)" == "Linux" ]]; then
+    available_mb=$(free -m | awk '/^Mem:/{print $7}')
+    # a running flexit container is about to be replaced, so its memory counts as available
+    running_usage=$(sudo docker stats --no-stream --format '{{.MemUsage}}' flexit-analytics 2>/dev/null | awk '{print $1}' | sed 's/B$//')
+    if [ -n "$running_usage" ]; then
+        available_mb=$(( available_mb + $(numfmt --from=auto "$running_usage") / 1048576 ))
+    fi
+    export MEMORY_LIMIT=$(( available_mb - 1024 ))m
+    echo "Setting container memory limit to $MEMORY_LIMIT"
+fi
+
+if [[ "$AUTO_MANAGE_CERTS" == "true" ]]; then
+    ./scripts/renew_letsencrypt.sh
+fi
+
+# Start services; containers whose image or config changed are recreated in place
+echo "Starting services with: sudo docker compose $COMPOSE_FILES up -d --remove-orphans $PULL_FLAG"
+sudo --preserve-env=FLEXIT_DEPLOY_TOKEN docker compose $COMPOSE_FILES up -d --remove-orphans $PULL_FLAG
 
 echo "Pruning unused docker artifacts"
 sudo docker system prune -f

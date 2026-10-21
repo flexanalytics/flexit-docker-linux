@@ -14,9 +14,9 @@ fi
 
 ./check_env.sh
 
-# Pull from the repo BEFORE tearing anything down. A failed pull — bad
-# credentials, no network, a diverged checkout — then aborts with the stack
-# still serving, instead of leaving the site down until someone intervenes.
+# Pull from the repo while the old stack is still serving. A failed pull — bad
+# credentials, no network, a diverged checkout — then aborts with the site up,
+# instead of leaving it down until someone intervenes.
 #
 # Git ops must NOT run as root. When this script (or deploy_server.sh
 # upstream) is invoked via sudo, plain `git` would run as root and
@@ -51,7 +51,7 @@ if [ "$STASHED" = "1" ]; then
   git_cmd stash pop
 fi
 
-# Also before teardown: the containers read the cert off disk when they
+# Also before the swap: the containers read the cert off disk when they
 # start, so generating it early costs nothing and keeps an openssl failure
 # out of the outage window.
 if [[ "$USE_SELF_SIGNED_CERT" == "true" ]]; then
@@ -59,7 +59,6 @@ if [[ "$USE_SELF_SIGNED_CERT" == "true" ]]; then
   ./renew_certs.sh
 fi
 
-echo "Stopping and removing containers..."
-./stop_server.sh
-
+# start_server.sh builds while the old stack keeps serving, then `up -d`
+# recreates only the containers whose image or config changed.
 ./start_server.sh
